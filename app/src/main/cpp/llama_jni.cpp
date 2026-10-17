@@ -18,6 +18,20 @@
 namespace {
 std::mutex g_mutex;
 std::atomic<bool> g_abort{false};
+std::atomic<int64_t> g_deadline_ms{0};
+int64_t monotonic_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+bool timed_out() {
+    const int64_t deadline = g_deadline_ms.load();
+    return deadline > 0 && monotonic_ms() >= deadline;
+}
+bool should_abort() { return g_abort.load() || timed_out(); }
+struct GenerationDeadline {
+    GenerationDeadline() { g_deadline_ms = monotonic_ms() + 180000; }
+    ~GenerationDeadline() { g_deadline_ms = 0; }
+};
 llama_model *g_model = nullptr;
 llama_context *g_ctx = nullptr;
 std::string g_path;
@@ -105,12 +119,26 @@ std::vector<llama_token> tokenize(const std::string &text, bool special) {
     return tokens;
 }
 
-int decode_tokens(const std::vector<llama_token> &tokens, int batch, size_t position) {
+bool progress(JNIEnv *env, jobject callback, const char *stage, int completed, int total) {
+    if (!callback) return true;
+    jclass cls = env->GetObjectClass(callback);
+    if (!cls) return false;
+    jmethodID method = env->GetMethodID(cls, "onProgress", "(Ljava/lang/String;II)V");
+    jstring label = method ? env->NewStringUTF(stage) : nullptr;
+    if (method && label) env->CallVoidMethod(callback, method, label, completed, total);
+    if (label) env->DeleteLocalRef(label);
+    env->DeleteLocalRef(cls);
+    return !env->ExceptionCheck();
+}
+
+int decode_tokens(const std::vector<llama_token> &tokens, int batch, size_t position, JNIEnv *env, jobject callback) {
     // Respect both context limits: n_batch is the public decode ceiling, while
     // n_ubatch is the backend's physical microbatch capacity on mobile.
     const int capacity = std::min(batch, static_cast<int>(llama_n_ubatch(g_ctx)));
     if (capacity < 1) return -1;
+    if (!progress(env, callback, "prompt", 0, static_cast<int>(tokens.size()))) return -3;
     for (size_t offset = 0; offset < tokens.size();) {
+        if (should_abort()) return 2;
         const int count = static_cast<int>(std::min<size_t>(capacity, tokens.size() - offset));
         llama_batch batch_data = llama_batch_init(count, 0, 1);
         batch_data.n_tokens = count;
@@ -129,6 +157,7 @@ int decode_tokens(const std::vector<llama_token> &tokens, int batch, size_t posi
         llama_batch_free(batch_data);
         if (rc) return rc;
         offset += count;
+        if (!progress(env, callback, "prompt", static_cast<int>(offset), static_cast<int>(tokens.size()))) return -3;
     }
     return 0;
 }
@@ -266,6 +295,11 @@ Java_im_mrgreen_engine_LlamaEngine_nativeLoad(JNIEnv *env, jobject, jstring path
         g_path = jstr(env, path);
         auto model_params = llama_model_default_params();
         model_params.load_mode = LLAMA_LOAD_MODE_MMAP;
+        // Pinned AUTO lazy-row loading uses a 4 GiB size_t threshold, which
+        // wraps to zero on ARMv7. These <1.3 GiB models must not enter it.
+        // Regular OS demand paging of mmap weights remains enabled.
+        model_params.lazy_mode = LLAMA_LAZY_MODE_OFF;
+        model_params.n_gpu_layers = 0;
         g_model = llama_model_load_from_file(g_path.c_str(), model_params);
         if (!g_model) { clear_model(); return error(env, "llama.cpp could not load model; verify local GGUF path and compatibility"); }
         auto context_params = llama_context_default_params();
@@ -275,7 +309,9 @@ Java_im_mrgreen_engine_LlamaEngine_nativeLoad(JNIEnv *env, jobject, jstring path
         context_params.n_threads = threads;
         context_params.n_threads_batch = threads;
         context_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
-        context_params.abort_callback = [](void *) { return g_abort.load(); };
+        context_params.offload_kqv = false;
+        context_params.op_offload = false;
+        context_params.abort_callback = [](void *) { return should_abort(); };
         g_ctx = llama_init_from_model(g_model, context_params);
         if (!g_ctx) { clear_model(); return error(env, "llama.cpp could not create inference context"); }
         g_nctx = nctx;
@@ -325,6 +361,7 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         std::lock_guard<std::mutex> lock(g_mutex);
         if (!g_ctx || !g_model) return error(env, "No local model is loaded");
         g_abort = false;
+        GenerationDeadline deadline;
         const jsize option_count = env->GetArrayLength(options);
         std::vector<std::string> opts;
         for (jsize i = 0; i < option_count; ++i) {
@@ -383,12 +420,14 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         }
         auto prompt_start = std::chrono::steady_clock::now();
         std::vector<llama_token> suffix(tokens.begin() + position, tokens.end());
-        int rc = decode_tokens(suffix, static_cast<int>(llama_n_batch(g_ctx)), position);
-        if (rc || g_abort) {
+        int rc = decode_tokens(suffix, static_cast<int>(llama_n_batch(g_ctx)), position, env, callback);
+        if (rc || should_abort()) {
             llama_memory_clear(memory, true);
             g_cached_prompt.clear();
+            if (env->ExceptionCheck()) return nullptr;
             char diagnostic[128];
             std::snprintf(diagnostic, sizeof(diagnostic), "Prompt llama_decode failed (rc=%d)", rc);
+            if (timed_out()) return error(env, "Generation timed out after 180 seconds during prompt evaluation; try context 512 and a short message");
             return error(env, g_abort ? "Generation cancelled" : diagnostic);
         }
         // Update only after a complete successful prompt decode; failed/cancelled work cannot be reused.
@@ -428,7 +467,10 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         int generated = 0;
         std::string held;
         bool stopped = false;
-        for (; generated < max_tokens && !g_abort; ) {
+        if (!progress(env, callback, "generate", 0, max_tokens)) {
+            llama_memory_clear(memory, true); g_cached_prompt.clear(); return nullptr;
+        }
+        for (; generated < max_tokens && !should_abort(); ) {
             llama_token token = llama_sampler_sample(sampler.get(), g_ctx, -1);
             if (llama_vocab_is_eog(vocab(), token)) break;
             llama_sampler_accept(sampler.get(), token);
@@ -448,6 +490,9 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
             llama_batch_free(one);
             if (rc) break;
             ++generated;
+            if (!progress(env, callback, "generate", generated, max_tokens)) {
+                llama_memory_clear(memory, true); g_cached_prompt.clear(); return nullptr;
+            }
             char piece[512];
             int piece_size = llama_token_to_piece(vocab(), token, piece, sizeof(piece), 0, false);
             if (piece_size <= 0) continue;
@@ -484,11 +529,12 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         }
         const double generation_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - generation_start).count();
         g_gen_tps = generation_seconds > 0 ? generated / generation_seconds : 0;
-        if (g_abort || rc) {
+        if (should_abort() || rc) {
             llama_memory_clear(memory, true);
             g_cached_prompt.clear();
             char diagnostic[128];
             std::snprintf(diagnostic, sizeof(diagnostic), "Token llama_decode failed (rc=%d)", rc);
+            if (timed_out()) return error(env, "Generation timed out after 180 seconds during token generation; partial reply retained");
             return error(env, g_abort ? "Generation cancelled" : diagnostic);
         }
         return nullptr;

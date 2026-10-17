@@ -2,12 +2,14 @@ package im.mrgreen.core
 
 import android.app.ActivityManager
 import android.content.Context
+import android.os.Build
 import android.os.Debug
 import android.os.PowerManager
 import im.mrgreen.GreenApp
 import im.mrgreen.engine.ChatTurn
 import im.mrgreen.engine.EngineStats
 import im.mrgreen.engine.GenerationOptions
+import im.mrgreen.engine.GenerationProgress
 import im.mrgreen.engine.LlamaEngine
 import im.mrgreen.engine.LoadParams
 import kotlinx.coroutines.*
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 // A single queue owns all native context access. cancel() is the sole out-of-band signal.
 data class AgentState(
@@ -108,6 +111,7 @@ object AgentController {
                 lastUse = System.currentTimeMillis()
                 publishStats(if(nCtx < params.nCtx) "Local ready · reduced context $nCtx" else "Local ready")
                 app.logger.write("INFO", "LLM", "Model loaded; context=$nCtx threads=${params.threads}; device performance unverified")
+                app.logger.write("INFO", "LLM", "Device=${Build.MANUFACTURER}/${Build.MODEL}; sdk=${Build.VERSION.SDK_INT}; supported_32bit=${Build.SUPPORTED_32_BIT_ABIS.joinToString()}; batch=${params.nBatch}; ubatch=${params.nUbatch}; gguf_bytes=${file.length()}; native=ARMv7-NEON-O3-CPU")
             } else { publishStats("Model load failed"); fail(result.error ?: "Model load failed", ErrorCode.E_LLM_LOAD) }
         }
     }
@@ -129,8 +133,8 @@ object AgentController {
                 .map { ChatTurn(it.role,it.content) }.toMutableList()
             turns.add(ChatTurn("user",text))
             val name = app.store.identityName()
-            val system = ChatTurn("system", "You are $name, a helpful offline assistant. Be concise and honest. Do not claim to perform device actions: no tools are connected in this Phase 1 build. Do not invent device state, memory records, time or computed facts. Thinking is disabled. /no_think")
-            val maxTokens = 256
+            val system = ChatTurn("system", "You are $name, a concise, honest offline assistant. No tools are connected. Do not claim device actions or invent device state, memory, time or computed facts.")
+            val maxTokens = 128
             val budget = (mutable.value.stats.nCtx - maxTokens - 96).coerceAtLeast(128)
             fun tokenCost() = engine.countTokens(system.content) + turns.sumOf { engine.countTokens(it.content) + 12 }
             while (turns.size > 1 && tokenCost() > budget) {
@@ -146,10 +150,18 @@ object AgentController {
             val buffer = StringBuilder()
             var lastPublish = 0L
             val started = System.nanoTime()
+            val progress = AtomicReference(GenerationProgress())
+            var firstToken = true
+            app.logger.write("INFO", "LLM", "Local chat started; context=${mutable.value.stats.nCtx}; turns=${turns.size}; max_tokens=$maxTokens; timeout_s=${GenerationProgress.TIMEOUT_SECONDS}", planId = runId)
             val monitor = scope.launch {
+                var seconds = 0
                 while (isActive) {
                     delay(1000)
+                    seconds++
+                    val current = progress.get()
+                    mutable.update { if (it.status == "Stopping…" || it.error != null) it else it.copy(status = current.status(seconds.toLong())) }
                     val mem = Debug.MemoryInfo(); Debug.getMemoryInfo(mem)
+                    if (seconds % 15 == 0) app.logger.write("INFO", "LLM", "Inference heartbeat; stage=${current.stage}; completed=${current.completed}; total=${current.total}; elapsed_s=$seconds; pss_kb=${mem.totalPss}", planId = runId)
                     if (mem.totalPss.toLong() * 1024 >= RuntimePolicy.HARD_CAP_BYTES) {
                         engine.cancel()
                         fail("Memory safety stop; unload the model and use a smaller context", ErrorCode.E_OOM_TRIM)
@@ -159,13 +171,24 @@ object AgentController {
             }
             try {
                 withWakeLock {
-                    val result = engine.generate(listOf(system) + turns, GenerationOptions(maxTokens = maxTokens)) { token ->
+                    val result = engine.generate(listOf(system) + turns, GenerationOptions(maxTokens = maxTokens), onProgress = { stage, completed, total ->
+                        val previous = progress.getAndSet(GenerationProgress(stage, completed, total))
+                        if (previous.stage != stage || (stage == "prompt" && completed == total)) {
+                            val elapsedMs = (System.nanoTime() - started) / 1_000_000
+                            app.logger.write("INFO", "LLM", "Inference progress; stage=$stage; completed=$completed; total=$total; elapsed_ms=$elapsedMs", planId = runId)
+                        }
+                    }) { token ->
+                        if (firstToken) {
+                            firstToken = false
+                            app.logger.write("INFO", "LLM", "First output; latency_ms=${(System.nanoTime() - started) / 1_000_000}", planId = runId)
+                        }
                         buffer.append(token)
                         val now = System.currentTimeMillis()
                         if (now - lastPublish >= 50) {
                             mutable.update { it.copy(streaming = buffer.toString()) }; lastPublish = now
                         }
                     }
+                    monitor.cancel()
                     if (buffer.isNotBlank()) app.store.addMessage("assistant",buffer.toString())
                     mutable.update { it.copy(streaming = "", refresh = System.currentTimeMillis()) }
                     if (result.ok) publishStats("Local ready")

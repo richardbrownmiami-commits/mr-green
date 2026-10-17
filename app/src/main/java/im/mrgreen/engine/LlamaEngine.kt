@@ -33,17 +33,23 @@ class LlamaEngine {
     private external fun nativeCancel()
     private external fun nativeStats(): String
     private external fun nativeCountTokens(text: String): Int
-    private fun interface TokenCallback { fun onToken(token: String) }
+    private interface TokenCallback {
+        fun onToken(token: String)
+        fun onProgress(stage: String, completed: Int, total: Int)
+    }
 
     fun load(path: String, params: LoadParams = LoadParams()): EngineResult = guarded {
         if (loadError != null) return EngineResult(false, loadError)
         nativeLoad(path, params.nCtx, params.nBatch, params.nUbatch, params.threads)
     }
     fun unload() { try { nativeUnload() } catch (_: Throwable) { } }
-    fun generate(messages: List<ChatTurn>, opts: GenerationOptions = GenerationOptions(), onToken: (String) -> Unit): EngineResult = guarded {
+    fun generate(messages: List<ChatTurn>, opts: GenerationOptions = GenerationOptions(), onProgress: (String, Int, Int) -> Unit = { _, _, _ -> }, onToken: (String) -> Unit): EngineResult = guarded {
         val m = messages.flatMap { listOf(it.role, it.content) }.toTypedArray()
         val o = arrayOf(opts.maxTokens.toString(), opts.temperature.toString(), opts.topK.toString(), opts.topP.toString(), opts.minP.toString(), opts.presencePenalty.toString(), opts.grammar ?: "", opts.stop.joinToString("\u0001"))
-        nativeGenerate(m, o, TokenCallback(onToken))
+        nativeGenerate(m, o, object : TokenCallback {
+            override fun onToken(token: String) = onToken.invoke(token)
+            override fun onProgress(stage: String, completed: Int, total: Int) = onProgress.invoke(stage, completed, total)
+        })
     }
     fun cancel() { try { nativeCancel() } catch (_: Throwable) { } }
     fun stats(): EngineStats = try {

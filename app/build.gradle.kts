@@ -12,8 +12,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 3
-        versionName = "0.1.2-violet-startup-fix"
+        versionCode = 4
+        versionName = "0.1.3-armv7-inference-fix"
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {

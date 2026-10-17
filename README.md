@@ -4,6 +4,12 @@ An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit A
 
 The owner authorized building before Phase 0 device verification and will check the app on the phone. **Neither Phase 0 nor the Phase 1 offline-chat/frame-rate gate is claimed as passed.** See [Phase 1 status](docs/phase1-status.md), [build results](docs/test-report.md) and the supplied [plan](docs/plan.md).
 
+## 0.1.3 ARMv7 inference fix
+
+Native Debug inference now uses `-O3` throughout llama.cpp and GGML; the earlier Debug configuration had no optimization flag. The APK still contains only ARMv7 native libraries, uses NDK 27.2 and targets Android API 30. CPU-only ARMv7 NEON flags replace the unnecessary VFPv4 assumption. Chat now shows prompt/token counts and elapsed time, writes content-free stage/heartbeat/first-token diagnostics, and requests a cooperative stop after 180 seconds. A native compute call must reach an abort check before that timeout can return; this is not a hard real-time kill.
+
+Start the phone retest with the existing Llama 3.2 1B GGUF, context **512**, **2 threads**, and a short message. Host build checks do not prove phone speed or solve every possible device/model issue. See [the diagnosis and phone checklist](docs/armv7-inference-fix.md). This build is signed with a new sandbox development key: if Android rejects an update, **do not uninstall or clear data**; use the original signing key for a data-preserving update.
+
 ## 0.1.2 Violet startup fix
 
 The violet theme supplied literal text colors where Material 1.12.0 bottom navigation expects a color resource ID. Android-host startup tests reproduced `Resources.NotFoundException: Resource ID #0x0` during `MainActivity.buildShell()`. Resource-backed text colors fix that construction failure without changing the palette or native model code. See [the startup diagnosis and tests](docs/startup-fix-report.md). No owner-phone test is claimed.
@@ -42,7 +48,7 @@ python3 scripts/check-apk-abi.py \
 
 **Installable development APK:** `app/build/outputs/apk/debug/app-debug.apk`. It uses Android's development signing key. The release output is deliberately **unsigned** (`app-release-unsigned.apk`) until the owner provides their release-signing process. Do not treat it as an installable signed release, and do not commit signing keys. Debug signatures can differ between builders. If Android rejects an update because of a signature mismatch, stop and use the original signing key for a data-preserving update. **Do not uninstall or clear app data as a workaround: this erases private chat and imported models.**
 
-This repository does not currently have CI wired up; use the local build commands above. A successful build still does not certify phone behavior.
+CI builds both variants and retains APKs as workflow artifacts; it does not publish a release or certify phone behavior.
 
 ## Try it on the phone
 
