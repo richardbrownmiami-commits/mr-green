@@ -12,8 +12,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 2
-        versionName = "0.1.1-violet-fix"
+        versionCode = 3
+        versionName = "0.1.2-violet-startup-fix"
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {
@@ -32,6 +32,12 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     packaging { jniLibs { useLegacyPackaging = true } }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+        }
+    }
     lint {
         abortOnError = true
         // The owner explicitly requires targetSdk 30 and sideload-only distribution.
@@ -51,4 +57,5 @@ dependencies {
     // Bundle SQLite rather than assuming the MIUI system library has FTS5.
     implementation("com.github.requery:sqlite-android:3.49.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

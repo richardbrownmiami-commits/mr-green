@@ -1,3 +1,5 @@
 <resources>
     <color name="launcher_background">#0D0A14</color>
+    <color name="mrgreen_text_primary">#F6F0FF</color>
+    <color name="mrgreen_text_secondary">#B8ABC9</color>
 </resources>

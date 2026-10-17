@@ -11,8 +11,8 @@
         <item name="android:windowBackground">#0D0A14</item>
         <item name="android:navigationBarColor">#0D0A14</item>
         <item name="android:statusBarColor">#0D0A14</item>
-        <item name="android:textColorPrimary">#F6F0FF</item>
-        <item name="android:textColorSecondary">#B8ABC9</item>
+        <item name="android:textColorPrimary">@color/mrgreen_text_primary</item>
+        <item name="android:textColorSecondary">@color/mrgreen_text_secondary</item>
         <item name="materialButtonStyle">@style/Widget.MrGreen.Button</item>
     </style>
     <style name="Widget.MrGreen.Button" parent="Widget.MaterialComponents.Button">

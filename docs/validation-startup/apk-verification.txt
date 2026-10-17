@@ -1,0 +1,25 @@
+PASS app/build/outputs/apk/debug/app-debug.apk: armeabi-v7a only (3 libraries)
+  lib/armeabi-v7a/libc++_shared.so
+  lib/armeabi-v7a/libmrgreen.so
+  lib/armeabi-v7a/libsqlite3x.so
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: C=US, O=Android, CN=Android Debug
+Signer #1 certificate SHA-256 digest: 2225f93245ce191529607b9c3e0deda97cce778720d11dfbf2f3c6b5fd87046e
+Signer #1 certificate SHA-1 digest: daafe740d06cd55bb9788f6f51132cc8d479544b
+Signer #1 certificate MD5 digest: 73803cc5440b4e0ae37c325ed12768fd
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 2048
+Signer #1 public key SHA-256 digest: db8b76fbc42d3b9e88cf4456c5e4d36482a66ec04867c5ac0fcdebd4aad22c9c
+Signer #1 public key SHA-1 digest: 3ce2f1d4bb4639a483bb397fe1c015b3b34d633a
+Signer #1 public key MD5 digest: 21a9214ae62509e631f72f2a539b4921
+package: name='im.mrgreen' versionCode='3' versionName='0.1.2-violet-startup-fix' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+sdkVersion:'26'
+targetSdkVersion:'30'
+uses-permission: name='android.permission.INTERNET'
