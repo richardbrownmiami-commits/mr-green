@@ -13,7 +13,10 @@ data class GenerationOptions(
     val grammar: String? = null,
     val stop: List<String> = emptyList()
 )
-data class EngineResult(val ok: Boolean, val error: String? = null)
+data class EngineResult(val ok: Boolean, val error: String? = null) {
+    /** Native abort is a user/system stop, not an inference failure. */
+    val cancelled: Boolean get() = !ok && error == "Generation cancelled"
+}
 data class EngineStats(
     val loadedModel: String?, val nCtx: Int, val promptTokPerSec: Double,
     val genTokPerSec: Double, val kvBytes: Long, val nativeHeapBytes: Long

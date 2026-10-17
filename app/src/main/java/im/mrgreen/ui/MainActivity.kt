@@ -13,6 +13,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -26,6 +28,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+internal enum class ComposerAction { SEND, STOP_GENERATING, WORKING }
+
+/** Pure state mapping: only active generation is cancellable from the composer. */
+internal fun composerAction(busy: Boolean, generating: Boolean): ComposerAction = when {
+    !busy -> ComposerAction.SEND
+    generating -> ComposerAction.STOP_GENERATING
+    else -> ComposerAction.WORKING
+}
+
 class MainActivity : AppCompatActivity() {
     private lateinit var root: LinearLayout
     private lateinit var host: FrameLayout
@@ -34,7 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var transcript: LinearLayout
     private lateinit var entry: TextInputEditText
     private lateinit var sendButton: MaterialButton
-    private lateinit var stopButton: MaterialButton
+    private lateinit var navView: BottomNavigationView
+    private lateinit var heroView: View
     private var engineStatus: TextView? = null
     private var liveRam: TextView? = null
     private var pageJob: kotlinx.coroutines.Job? = null
@@ -42,7 +54,7 @@ class MainActivity : AppCompatActivity() {
     private var renderedRefresh = -1L
     private var selected = R.id.tab_chat
     private var displayedStream = ""
-    private val bg = 0xFF07130F.toInt(); private val surface = 0xFF10221A.toInt(); private val mint = 0xFF8CE6AE.toInt()
+    private val bg = 0xFF0D0A14.toInt(); private val surface = 0xFF1C1529.toInt(); private val mint = 0xFFB98AFF.toInt()
     private val modelPicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) result.data?.data?.let(::importModel)
     }
@@ -50,7 +62,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg; window.navigationBarColor = bg
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        // Inverting LIGHT_STATUS_BAR enables every other flag, including fullscreen,
+        // which prevents adjustResize from keeping the composer above the IME.
+        window.decorView.systemUiVisibility = 0
         if (!getPreferences(MODE_PRIVATE).getBoolean("onboarding_seen", false)) {
             startActivity(Intent(this, OnboardingActivity::class.java)); getPreferences(MODE_PRIVATE).edit().putBoolean("onboarding_seen", true).apply()
         }
@@ -61,7 +76,7 @@ class MainActivity : AppCompatActivity() {
                     if (::orb.isInitialized) { orb.mode = when { state.error != null -> OrbView.Mode.ERROR; state.busy -> OrbView.Mode.THINKING; else -> OrbView.Mode.IDLE }; orb.invalidate() }
                     findViewById<TextView>(R.id.status_text)?.text = state.error ?: state.status
                     if (selected == R.id.tab_llama) engineStatus?.text = state.error ?: getString(R.string.engine_live, state.status, state.stats.promptTokPerSec, state.stats.genTokPerSec, state.stats.nCtx)
-                    sendButtonIfShown(state.busy)
+                    sendButtonIfShown(state.busy, state.generating)
                     if (state.streaming.isNotEmpty()) updateStream(state.streaming)
                     else if (state.refresh != renderedRefresh) { renderedRefresh = state.refresh; refreshTranscript() }
                 }
@@ -77,16 +92,24 @@ class MainActivity : AppCompatActivity() {
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(14), dp(20), 0) }
         root.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
         val nav = BottomNavigationView(this).apply {
-            id = R.id.bottom_navigation; setBackgroundColor(0xFF0B1A13.toInt()); itemIconTintList = null
-            menu.add(0,R.id.tab_chat,0,getString(R.string.nav_chat)).setIcon(android.R.drawable.ic_menu_edit)
-            menu.add(0,R.id.tab_panel,1,getString(R.string.nav_panel)).setIcon(android.R.drawable.ic_menu_view)
-            menu.add(0,R.id.tab_llama,2,getString(R.string.nav_llama)).setIcon(android.R.drawable.ic_menu_manage)
-            menu.add(0,R.id.tab_logs,3,getString(R.string.nav_logs)).setIcon(android.R.drawable.ic_menu_info_details)
-            menu.add(0,R.id.tab_files,4,getString(R.string.nav_files)).setIcon(android.R.drawable.ic_menu_save)
+            id = R.id.bottom_navigation; setBackgroundColor(surface); itemIconTintList = android.content.res.ColorStateList.valueOf(mint); itemTextColor = android.content.res.ColorStateList.valueOf(0xFFB8ABC9.toInt())
+            menu.add(0,R.id.tab_chat,0,getString(R.string.nav_chat)).setIcon(R.drawable.ic_nav_chat)
+            menu.add(0,R.id.tab_panel,1,getString(R.string.nav_panel)).setIcon(R.drawable.ic_nav_overview)
+            menu.add(0,R.id.tab_llama,2,getString(R.string.nav_llama)).setIcon(R.drawable.ic_nav_models)
+            menu.add(0,R.id.tab_logs,3,getString(R.string.nav_logs)).setIcon(R.drawable.ic_nav_diagnostics)
+            menu.add(0,R.id.tab_files,4,getString(R.string.nav_files)).setIcon(R.drawable.ic_nav_library)
             labelVisibilityMode = BottomNavigationView.LABEL_VISIBILITY_LABELED
             setOnItemSelectedListener { item -> selected=item.itemId; when(item.itemId){R.id.tab_chat->showChat();R.id.tab_panel->showPanel();R.id.tab_llama->showLlama();R.id.tab_logs->showLogs();R.id.tab_files->showFiles()}; true }
         }
+        navView = nav
         root.addView(nav, LinearLayout.LayoutParams(-1,dp(72))); setContentView(root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            navView.visibility = if (imeVisible) View.GONE else View.VISIBLE
+            if (::heroView.isInitialized && selected == R.id.tab_chat) heroView.visibility = if (imeVisible) View.GONE else View.VISIBLE
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
     }
     private fun start(title: String, subtitle: String? = null) {
         pageJob?.cancel(); transcriptJob?.cancel(); engineStatus = null; liveRam = null
@@ -99,23 +122,31 @@ class MainActivity : AppCompatActivity() {
             scroll.addView(body, android.view.ViewGroup.LayoutParams(-1,-2))
             host.addView(scroll, FrameLayout.LayoutParams(-1,-1))
         }
-        body.addView(TextView(this).apply { text=title; textSize=25f; minHeight=dp(42); setTextColor(0xFFF1F8F2.toInt()); typeface=android.graphics.Typeface.DEFAULT_BOLD },LinearLayout.LayoutParams(-1,-2))
-        if(subtitle!=null) body.addView(TextView(this).apply { text=subtitle; textSize=14f; minHeight=dp(38); setTextColor(0xFF9BB2A2.toInt()) },LinearLayout.LayoutParams(-1,-2))
+        body.addView(TextView(this).apply { text=title; textSize=25f; minHeight=dp(42); setTextColor(0xFFF6F0FF.toInt()); typeface=android.graphics.Typeface.DEFAULT_BOLD },LinearLayout.LayoutParams(-1,-2))
+        if(subtitle!=null) body.addView(TextView(this).apply { text=subtitle; textSize=14f; minHeight=dp(38); setTextColor(0xFFB8ABC9.toInt()) },LinearLayout.LayoutParams(-1,-2))
     }
     private fun showChat() {
         start(getString(R.string.app_name),getString(R.string.chat_subtitle))
-        orb=OrbView(this).apply { contentDescription=getString(R.string.orb_description) }; body.addView(orb,LinearLayout.LayoutParams(-1,dp(130)))
+        orb=OrbView(this).apply { contentDescription=getString(R.string.orb_description) }; heroView=orb; body.addView(orb,LinearLayout.LayoutParams(-1,dp(130)))
         body.addView(TextView(this).apply { id=R.id.status_text; text=AgentController.state.value.error ?: AgentController.state.value.status; gravity=Gravity.CENTER; textSize=13f; setTextColor(mint) },LinearLayout.LayoutParams(-1,dp(28)))
         val scroll=ScrollView(this).apply { isFillViewport=true }; transcript=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(8)) }
         scroll.addView(transcript); body.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); refreshTranscript()
         val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; orientation=LinearLayout.HORIZONTAL; setPadding(0,dp(6),0,dp(8)) }
-        entry=TextInputEditText(this).apply { hint=getString(R.string.message_hint); setTextColor(-1); setHintTextColor(0xFF8FA396.toInt()); setPadding(dp(14),0,dp(10),0); minHeight=dp(52); background=rounded(surface,18) }
-        row.addView(entry,LinearLayout.LayoutParams(0,dp(54),1f))
-        sendButton=MaterialButton(this).apply { text=getString(R.string.send); minHeight=dp(48); setOnClickListener { send() } }; row.addView(sendButton,LinearLayout.LayoutParams(dp(82),dp(54)))
-        stopButton=MaterialButton(this).apply { text=getString(R.string.stop); minHeight=dp(48); setOnClickListener { AgentController.cancel() } }; row.addView(stopButton,LinearLayout.LayoutParams(dp(82),dp(54)))
-        body.addView(row); sendButtonIfShown(AgentController.state.value.busy)
+        entry=TextInputEditText(this).apply { hint=getString(R.string.message_hint); setTextColor(0xFFF6F0FF.toInt()); setHintTextColor(0xFFB8ABC9.toInt()); setPadding(dp(14),dp(10),dp(10),dp(10)); minHeight=dp(52); maxLines=4; gravity=Gravity.TOP or Gravity.START; inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES; background=rounded(surface,18) }
+        row.addView(entry,LinearLayout.LayoutParams(0,-2,1f))
+        sendButton=MaterialButton(this).apply { text=getString(R.string.send); minHeight=dp(48); cornerRadius=dp(18); setOnClickListener { val state=AgentController.state.value; if (state.busy && state.generating) AgentController.cancel() else if (!state.busy) send() } }; row.addView(sendButton,LinearLayout.LayoutParams(dp(104),dp(54)))
+        body.addView(row); sendButtonIfShown(AgentController.state.value.busy, AgentController.state.value.generating)
     }
-    private fun sendButtonIfShown(busy:Boolean) { if (::sendButton.isInitialized && sendButton.parent != null) { sendButton.isEnabled=!busy; entry.isEnabled=!busy; stopButton.isEnabled=busy } }
+    private fun sendButtonIfShown(busy: Boolean, generating: Boolean) {
+        if (!::sendButton.isInitialized || sendButton.parent == null) return
+        when (composerAction(busy, generating)) {
+            ComposerAction.SEND -> { sendButton.text = getString(R.string.send); sendButton.isEnabled = true }
+            ComposerAction.STOP_GENERATING -> { sendButton.text = getString(R.string.stop); sendButton.isEnabled = true }
+            ComposerAction.WORKING -> { sendButton.text = getString(R.string.working); sendButton.isEnabled = false }
+        }
+        // Keep a next-message draft editable without allowing a second submission.
+        entry.isEnabled = true
+    }
     private fun refreshTranscript() {
         if (!::transcript.isInitialized || selected!=R.id.tab_chat || !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
         transcriptJob?.cancel()
@@ -138,7 +169,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun addBubble(role:String,text:String) {
         if(!::transcript.isInitialized || selected!=R.id.tab_chat)return
-        val mine=role.equals("user",true); val bubble=TextView(this).apply { this.text=text; textSize=15f; setTextColor(if(mine)bg else 0xFFE5F0E8.toInt()); setPadding(dp(15),dp(12),dp(15),dp(12)); background=rounded(if(mine)mint else surface,18) }
+        val mine=role.equals("user",true); val bubble=TextView(this).apply { this.text=text; textSize=15f; setTextColor(0xFFF6F0FF.toInt()); setPadding(dp(15),dp(12),dp(15),dp(12)); background=rounded(if(mine)0xFF6B43A0.toInt() else surface,18) }
         transcript.addView(bubble,LinearLayout.LayoutParams(if(mine)dp(300) else -1,-2).apply { gravity=if(mine)Gravity.END else Gravity.START; bottomMargin=dp(10) })
     }
     private fun showPanel() {
@@ -156,9 +187,9 @@ class MainActivity : AppCompatActivity() {
     private fun showLlama() {
         start(getString(R.string.llama_title),getString(R.string.llama_subtitle)); val s=AgentController.state.value
         card(getString(R.string.local_engine),"${s.status}\n${getString(R.string.loaded_model)}: ${s.stats.loadedModel ?: getString(R.string.none)}")
-        engineStatus = TextView(this).apply { text = s.error ?: getString(R.string.engine_live,s.status,s.stats.promptTokPerSec,s.stats.genTokPerSec,s.stats.nCtx); setTextColor(mint); setPadding(0,dp(8),0,dp(8)) }
+        engineStatus = TextView(this).apply { text = s.error ?: getString(R.string.engine_live,s.status,s.stats.promptTokPerSec,s.stats.genTokPerSec,s.stats.nCtx); setTextColor(0xFFB8ABC9.toInt()); setPadding(0,dp(8),0,dp(8)) }
         body.addView(engineStatus)
-        liveRam = TextView(this).apply { setTextColor(mint); setPadding(0,dp(8),0,dp(8)) }
+        liveRam = TextView(this).apply { setTextColor(0xFFB8ABC9.toInt()); setPadding(0,dp(8),0,dp(8)) }
         body.addView(liveRam)
         pageJob = lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -212,7 +243,7 @@ class MainActivity : AppCompatActivity() {
     private fun showLogs() {
         start(getString(R.string.logs_title), getString(R.string.logs_subtitle))
         val search = TextInputEditText(this).apply {
-            hint = getString(R.string.search_logs); setTextColor(-1); minHeight = dp(52)
+            hint = getString(R.string.search_logs); setTextColor(0xFFF6F0FF.toInt()); minHeight = dp(52)
         }
         body.addView(search)
         val crash = File(filesDir, "crashes/last-crash.txt")
@@ -260,7 +291,7 @@ class MainActivity : AppCompatActivity() {
         refresh("")
     }
     private fun showFiles(){start(getString(R.string.files_title),getString(R.string.files_subtitle)); val files=File(filesDir,"models").listFiles()?.filter{it.isFile}?.joinToString("\n"){ "${it.name} · ${it.length()/1048576} MB" }.takeUnless{it.isNullOrBlank()}?:getString(R.string.no_models); card(getString(R.string.models_title),files)}
-    private fun card(title:String,text:String){val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(14),dp(16),dp(14));background=rounded(surface,16)};box.addView(TextView(this).apply{this.text=title;textSize=16f;setTextColor(mint);typeface=android.graphics.Typeface.DEFAULT_BOLD});box.addView(TextView(this).apply{this.text=text;textSize=14f;setTextColor(0xFFB1C4B6.toInt());setPadding(0,dp(7),0,0)});body.addView(box,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(12)})}
+    private fun card(title:String,text:String){val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(14),dp(16),dp(14));background=rounded(surface,16)};box.addView(TextView(this).apply{this.text=title;textSize=16f;setTextColor(mint);typeface=android.graphics.Typeface.DEFAULT_BOLD});box.addView(TextView(this).apply{this.text=text;textSize=14f;setTextColor(0xFFB8ABC9.toInt());setPadding(0,dp(7),0,0)});body.addView(box,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(12)})}
     private fun action(label:String,desc:String,run:()->Unit){body.addView(MaterialButton(this).apply{text=label;contentDescription=desc;minHeight=dp(52);setOnClickListener{run()}},LinearLayout.LayoutParams(-1,dp(58)))}
     private fun toast(text:String){Toast.makeText(this,text,Toast.LENGTH_LONG).show()}
     private fun rounded(color:Int,radius:Int)=android.graphics.drawable.GradientDrawable().apply{setColor(color);cornerRadius=dp(radius).toFloat()}

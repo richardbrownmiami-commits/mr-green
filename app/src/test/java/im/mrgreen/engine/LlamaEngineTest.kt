@@ -5,6 +5,12 @@ import org.junit.Test
 
 /** Host JVM deliberately has no Android JNI library; these test honest failure behavior only. */
 class LlamaEngineTest {
+    @Test fun nativeCancellationIsNotClassifiedAsInferenceFailure() {
+        assertTrue(EngineResult(false, "Generation cancelled").cancelled)
+        assertFalse(EngineResult(false, "Prompt llama_decode failed (rc=1)").cancelled)
+        assertFalse(EngineResult(true).cancelled)
+    }
+
     @Test fun missingNativeRuntimeIsAnExplicitLoadFailure() {
         val result = LlamaEngine().load("/does-not-exist.gguf")
         assertFalse(result.ok)

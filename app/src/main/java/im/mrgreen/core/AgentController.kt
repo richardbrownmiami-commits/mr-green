@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 // A single queue owns all native context access. cancel() is the sole out-of-band signal.
 data class AgentState(
     val busy: Boolean = false,
+    val generating: Boolean = false,
     val status: String = "No model loaded",
     val streaming: String = "",
     val error: String? = null,
@@ -59,7 +60,7 @@ object AgentController {
                 catch (_: OutOfMemoryError) { engine.cancel(); fail("Low memory. Unload the model and retry with a smaller context.", ErrorCode.E_OOM_TRIM) }
                 finally {
                     if (command.userRequest) requested.set(false)
-                    mutable.update { it.copy(busy = requested.get(), refresh = System.currentTimeMillis()) }
+                    mutable.update { it.copy(busy = requested.get(), generating = false, refresh = System.currentTimeMillis()) }
                 }
             }
         }
@@ -141,7 +142,7 @@ object AgentController {
                 return@enqueue
             }
             app.store.addMessage("user",text)
-            mutable.update { it.copy(status = "Thinking locally…", streaming = "", refresh = System.currentTimeMillis()) }
+            mutable.update { it.copy(status = "Thinking locally…", generating = true, streaming = "", refresh = System.currentTimeMillis()) }
             val buffer = StringBuilder()
             var lastPublish = 0L
             val started = System.nanoTime()
@@ -168,9 +169,11 @@ object AgentController {
                     if (buffer.isNotBlank()) app.store.addMessage("assistant",buffer.toString())
                     mutable.update { it.copy(streaming = "", refresh = System.currentTimeMillis()) }
                     if (result.ok) publishStats("Local ready")
+                    else if (result.cancelled) publishStats("Generation cancelled")
                     else { publishStats("Local generation stopped"); fail(result.error ?: "Generation stopped", ErrorCode.E_LLM_GENERATE) }
                     val elapsedMs = (System.nanoTime() - started) / 1_000_000
-                    app.logger.write(if(result.ok) "INFO" else "WARN", "LLM", "Local chat completed=${result.ok}; duration_ms=$elapsedMs; output_chars=${buffer.length}; gen_tok_s=${engine.stats().genTokPerSec}", planId = runId)
+                    val detail = if (result.ok) "" else if (result.cancelled) "cancelled" else "; native_error=${result.error ?: "unknown"}"
+                    app.logger.write(if(result.ok || result.cancelled) "INFO" else "WARN", "LLM", "Local chat completed=${result.ok}; duration_ms=$elapsedMs; output_chars=${buffer.length}; gen_tok_s=${engine.stats().genTokPerSec}$detail", if (!result.ok && !result.cancelled) ErrorCode.E_LLM_GENERATE else null, planId = runId)
                 }
             } finally { monitor.cancel(); lastUse = System.currentTimeMillis() }
         }
@@ -210,7 +213,7 @@ object AgentController {
     private fun publishStats(status: String) { mutable.update { it.copy(stats = engine.stats(), status = status) } }
     private fun fail(message: String, code: ErrorCode) {
         mutable.update { it.copy(error = "${code.name}: $message", status = "Needs attention") }
-        if (initialized.get()) app.logger.write("WARN", "LLM", code.name, code)
+        if (initialized.get()) app.logger.write("WARN", "LLM", message, code)
     }
     private suspend fun withWakeLock(block: suspend () -> Unit) {
         val power = app.getSystemService(Context.POWER_SERVICE) as PowerManager

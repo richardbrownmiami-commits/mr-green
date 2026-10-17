@@ -106,9 +106,18 @@ std::vector<llama_token> tokenize(const std::string &text, bool special) {
 }
 
 int decode_tokens(const std::vector<llama_token> &tokens, int batch, size_t position) {
+    // Respect both context limits: n_batch is the public decode ceiling, while
+    // n_ubatch is the backend's physical microbatch capacity on mobile.
+    const int capacity = std::min(batch, static_cast<int>(llama_n_ubatch(g_ctx)));
+    if (capacity < 1) return -1;
     for (size_t offset = 0; offset < tokens.size();) {
-        const int count = static_cast<int>(std::min<size_t>(batch, tokens.size() - offset));
+        const int count = static_cast<int>(std::min<size_t>(capacity, tokens.size() - offset));
         llama_batch batch_data = llama_batch_init(count, 0, 1);
+        batch_data.n_tokens = count;
+        if (!batch_data.token || !batch_data.pos || !batch_data.n_seq_id || !batch_data.seq_id || !batch_data.logits) {
+            llama_batch_free(batch_data);
+            return -2;
+        }
         for (int i = 0; i < count; ++i) {
             batch_data.token[i] = tokens[offset + i];
             batch_data.pos[i] = static_cast<llama_pos>(position + offset + i);
@@ -378,7 +387,9 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         if (rc || g_abort) {
             llama_memory_clear(memory, true);
             g_cached_prompt.clear();
-            return error(env, g_abort ? "Generation cancelled" : "Prompt evaluation failed in llama_decode");
+            char diagnostic[128];
+            std::snprintf(diagnostic, sizeof(diagnostic), "Prompt llama_decode failed (rc=%d)", rc);
+            return error(env, g_abort ? "Generation cancelled" : diagnostic);
         }
         // Update only after a complete successful prompt decode; failed/cancelled work cannot be reused.
         g_cached_prompt = tokens;
@@ -422,6 +433,12 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
             if (llama_vocab_is_eog(vocab(), token)) break;
             llama_sampler_accept(sampler.get(), token);
             llama_batch one = llama_batch_init(1, 0, 1);
+            one.n_tokens = 1;
+            if (!one.token || !one.pos || !one.n_seq_id || !one.seq_id || !one.logits) {
+                llama_batch_free(one);
+                rc = -2;
+                break;
+            }
             one.token[0] = token;
             one.pos[0] = static_cast<llama_pos>(tokens.size() + generated);
             one.n_seq_id[0] = 1;
@@ -470,7 +487,9 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         if (g_abort || rc) {
             llama_memory_clear(memory, true);
             g_cached_prompt.clear();
-            return error(env, g_abort ? "Generation cancelled" : "Token evaluation failed in llama_decode");
+            char diagnostic[128];
+            std::snprintf(diagnostic, sizeof(diagnostic), "Token llama_decode failed (rc=%d)", rc);
+            return error(env, g_abort ? "Generation cancelled" : diagnostic);
         }
         return nullptr;
     });

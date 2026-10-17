@@ -4,10 +4,14 @@ An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit A
 
 The owner authorized building before Phase 0 device verification and will check the app on the phone. **Neither Phase 0 nor the Phase 1 offline-chat/frame-rate gate is claimed as passed.** See [Phase 1 status](docs/phase1-status.md), [build results](docs/test-report.md) and the supplied [plan](docs/plan.md).
 
+## 0.1.1 Violet fix
+
+This update fixes zero-token JNI batches, preserves native failure details in diagnostics, replaces the two composer buttons with a single Send/Stop control (including prompt evaluation), fixes fullscreen flags that broke keyboard resizing, and restyles all screens in opaque dark purple. See [the fix report](docs/violet-fix-report.md) for evidence and remaining phone checks.
+
 ## In this increment
 
-- Kotlin and Views/Material UI: chat, panel, Llama, logs, files and permission onboarding.
-- Custom forest-green orb with reduced-motion support.
+- Kotlin and Views/Material UI: Chat, Overview, Models, Diagnostics, Library and permission onboarding.
+- Original faceted purple sentinel SVG/launcher identity with reduced-motion support.
 - Actual CPU-only llama.cpp JNI, streaming local responses and cancellation; no fake AI replies or cloud requests.
 - Model import through the system picker; app-private model storage, one model at a time.
 - Serialized engine queue, low-RAM context reduction, trim handling and idle unloading.
@@ -38,7 +42,7 @@ CI builds both variants and retains APKs as workflow artifacts; it does not publ
 
 ## Try it on the phone
 
-1. Install the debug APK. Open **Llama** and import a text-only GGUF through the Android file picker. No all-files permission is necessary for private imports.
+1. Install the debug APK. Open **Models** and import a text-only GGUF through the Android file picker. No all-files permission is necessary for private imports.
 2. Start with Bonsai Q2_0 and four threads, 2048 context. Only one local model is loaded. Do not download an mmproj/vision file.
 3. Tap Load, wait for the real loading result, then ask a short writing question in Chat. The Phase 1 app cannot perform Android actions.
 4. Stop generation with the Stop control. Unload before switching models. The service notification also lets you stop the engine.
@@ -46,4 +50,4 @@ CI builds both variants and retains APKs as workflow artifacts; it does not publ
 
 Shared `/sdcard/Red` access is optional and requires the owner's explicit all-files grant. Database and imported models stay in private app storage; do not uninstall without backing up wanted files. Logs omit prompts and replies. Chat is stored locally. Native faults cannot be made universally crash-proof by Kotlin; device stability still needs testing.
 
-The supplied final SVG icon was absent; the bundled orb icon is provisional. See [third-party dependencies](docs/third-party.md).
+The original editable identity is [assets/mr-green-violet-sentinel.svg](assets/mr-green-violet-sentinel.svg); matching Android vector paths are used in the launcher and app. No stock image was copied. See [third-party dependencies](docs/third-party.md).

@@ -3,19 +3,23 @@ package im.mrgreen.ui
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.*
-import android.os.SystemClock
 import android.provider.Settings
 import android.view.View
 import android.view.accessibility.AccessibilityManager
 import android.view.animation.LinearInterpolator
+import androidx.appcompat.content.res.AppCompatResources
+import im.mrgreen.R
 import kotlin.math.*
 
-/** Hand-drawn ambient status orb; animation is lifecycle/visibility aware and respects animator scale. */
+/** Original faceted sentinel identity; animation respects visibility and reduced motion. */
 class OrbView(context: Context) : View(context) {
     enum class Mode { IDLE, THINKING, ERROR }
     var mode: Mode = Mode.IDLE
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val emblem = AppCompatResources.getDrawable(context, R.drawable.ic_mrgreen_orb)!!
     private var phase = 0f
+    private var glow: RadialGradient? = null
+    private val orbit = RectF()
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = 7200L; repeatCount = ValueAnimator.INFINITE; interpolator = LinearInterpolator()
         addUpdateListener { phase = it.animatedValue as Float; invalidate() }
@@ -32,27 +36,37 @@ class OrbView(context: Context) : View(context) {
         if (isAttachedToWindow && isShown && windowVisibility == VISIBLE && scale > 0f && !am.isEnabled && !reduce) { if (!animator.isStarted) animator.start() }
         else animator.cancel()
     }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        val cx = w / 2f; val cy = h / 2f
+        val radius = min(w * .64f, h * .98f) * .48f
+        glow = if (radius > 0f) RadialGradient(cx, cy, radius * 1.4f,
+            intArrayOf(0x443F226D, 0x223F226D, Color.TRANSPARENT), floatArrayOf(0f,.6f,1f), Shader.TileMode.CLAMP) else null
+        orbit.set(cx-radius, cy-radius, cx+radius, cy+radius)
+    }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val cx = width / 2f; val cy = height / 2f; val base = min(width * .29f, height * .39f)
-        val t = phase * 2f * Math.PI.toFloat()
-        val pulse = if (mode == Mode.IDLE) 1f + .035f * sin(t) else 1f
-        val radius = base * pulse
-        val color = if (mode == Mode.ERROR) Color.rgb(255, 103, 92) else Color.rgb(91, 222, 147)
-        paint.shader = RadialGradient(cx, cy, radius * 1.9f, intArrayOf(Color.TRANSPARENT, Color.argb(34, 56, 225, 132), Color.TRANSPARENT), floatArrayOf(.2f,.65f,1f), Shader.TileMode.CLAMP)
-        canvas.drawCircle(cx, cy, radius * 1.9f, paint); paint.shader = null
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.5f; paint.color = Color.argb(65, 132, 246, 180)
-        canvas.drawCircle(cx, cy, radius * 1.23f, paint); canvas.drawCircle(cx, cy, radius * 1.39f, paint)
+        val cx = width / 2f; val cy = height / 2f
+        val size = min(width * .64f, height * .98f)
+        val radius = size * .48f
+        if (radius <= 0f) return
         paint.style = Paint.Style.FILL
-        paint.shader = RadialGradient(cx - radius * .28f, cy - radius * .36f, radius * 1.7f, intArrayOf(Color.WHITE, color, Color.rgb(10, 87, 52)), floatArrayOf(0f,.24f,1f), Shader.TileMode.CLAMP)
-        canvas.drawCircle(cx, cy, radius, paint); paint.shader = null
+        paint.shader = glow
+        canvas.drawCircle(cx, cy, radius * 1.4f, paint)
+        paint.shader = null
+        val floatOffset = if (animator.isRunning) sin(phase * 2f * PI.toFloat()) * size * .012f else 0f
+        canvas.save(); canvas.translate(0f, floatOffset)
+        emblem.setBounds((cx-size/2).toInt(), (cy-size/2).toInt(), (cx+size/2).toInt(), (cy+size/2).toInt())
+        emblem.draw(canvas); canvas.restore()
         if (mode == Mode.THINKING) {
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = 4f; paint.strokeCap = Paint.Cap.ROUND
-            paint.color = Color.rgb(178, 255, 202)
-            val rect = RectF(cx-radius*1.52f, cy-radius*1.52f, cx+radius*1.52f, cy+radius*1.52f)
-            canvas.drawArc(rect, phase*360f, 100f, false, paint); paint.style = Paint.Style.FILL
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = resources.displayMetrics.density * 2f
+            paint.strokeCap = Paint.Cap.ROUND; paint.color = 0xFFB98AFF.toInt()
+            canvas.drawArc(orbit, phase*360f, 74f, false, paint)
         } else if (mode == Mode.ERROR) {
-            paint.color = color; canvas.drawCircle(cx + radius*1.1f, cy-radius*1.0f, 5f, paint)
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = resources.displayMetrics.density * 2f
+            paint.color = 0xFFFFB4C8.toInt()
+            canvas.drawArc(orbit, 45f, 90f, false, paint)
         }
+        paint.style = Paint.Style.FILL
     }
 }

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" role="img" aria-label="Original purple AI sentinel helmet">
+<title>Violet Sentinel — Mr Green</title>
+<defs><linearGradient id="hood" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#765193"/><stop offset=".5" stop-color="#30203F"/><stop offset="1" stop-color="#110B1D"/></linearGradient><linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#E4D3FF"/><stop offset=".45" stop-color="#8F6CAD"/><stop offset="1" stop-color="#261B37"/></linearGradient><linearGradient id="nose" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#C1A1E4"/><stop offset=".5" stop-color="#86659E"/><stop offset="1" stop-color="#493256"/></linearGradient></defs>
+<path d="M128 18 L174 38 L209 97 L216 191 L177 224 L128 240 L79 224 L40 191 L47 97 L82 38 Z" fill="url(#hood)"/>
+<path d="M128 18 L82 38 L47 97 L40 191 L77 170 L88 72 Z" fill="#382455"/>
+<path d="M128 18 L174 38 L209 97 L216 191 L180 170 L166 72 Z" fill="#110C22"/>
+<path d="M82 38 L128 18 L174 38 L158 49 L128 38 L98 49 Z" fill="#9D73D3"/>
+<path d="M88 72 L128 50 L168 72 L185 112 L177 181 L151 211 L128 222 L105 211 L79 181 L71 112 Z" fill="url(#metal)"/>
+<path d="M88 72 L128 50 L128 106 L77 122 L71 112 Z" fill="#B899E7"/>
+<path d="M128 50 L168 72 L185 112 L179 122 L128 106 Z" fill="#584175"/>
+<path d="M77 122 L128 106 L179 122 L171 151 L144 144 L128 126 L112 144 L85 151 Z" fill="#100D1B"/>
+<path d="M85 125 L114 121 L106 135 L88 137 Z" fill="#DCC3FF"/>
+<path d="M142 121 L171 125 L168 137 L150 135 Z" fill="#BD83FF"/>
+<path d="M128 126 L114 153 L119 169 L137 169 L142 153 Z" fill="url(#nose)"/>
+<path d="M79 151 L105 158 L114 183 L128 191 L128 222 L105 211 L79 181 Z" fill="#6F538F"/>
+<path d="M177 151 L151 158 L142 183 L128 191 L128 222 L151 211 L177 181 Z" fill="#342640"/>
+<path d="M103 177 L114 183 L128 187 L142 183 L153 177 L146 195 L128 205 L110 195 Z" fill="#1B1428"/>
+<path d="M118 184 L122 185 L122 198 L118 196 Z M126 187 L130 187 L130 201 L126 201 Z M134 185 L138 184 L138 196 L134 198 Z" fill="#AC8ACC"/>
+<path d="M47 97 L62 87 L57 177 L79 208 L79 224 L40 191 Z" fill="#241636"/>
+<path d="M209 97 L194 87 L199 177 L177 208 L177 224 L216 191 Z" fill="#1B112B"/>
+<path d="M88 72 L128 50 L168 72" fill="none" stroke="#E2C9FF" stroke-opacity=".55" stroke-width="1.5"/>
+<path d="M79 181 L105 211 L128 222 L151 211 L177 181" fill="none" stroke="#E2C9FF" stroke-opacity=".55" stroke-width="1.5"/>
+</svg>
