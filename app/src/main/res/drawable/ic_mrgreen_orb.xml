@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <!-- Provisional clean orb mark; original assets/mr-green.svg was not present. -->
+    <path android:fillColor="#173A29" android:pathData="M24,2A22,22 0,1 0,24 46A22,22 0,1 0,24 2"/>
+    <path android:fillColor="#8CE6AE" android:pathData="M24,9A15,15 0,1 0,24 39A15,15 0,1 0,24 9"/>
+    <path android:fillColor="#F3FFF6" android:pathData="M18,14A9,9 0,0 1,31 16A9,9 0,0 0,18 14"/>
+</vector>
