@@ -8,6 +8,8 @@ The literal-only rule layer uses [rivescript-core](https://github.com/aichaos/ri
 
 The local PDF importer uses `com.tom-roush:pdfbox-android:2.0.27.0` (Apache-2.0). The APK includes the Apache-2.0 license under `assets/licenses/Apache-2.0.txt`; native llama.cpp and QuickJS MIT notices are also bundled under `assets/licenses/`. PDFBox parsing runs locally, not through a document-upload service. TXT and EPUB parsing use code and platform facilities in this repository.
 
+Public web/MCP transport uses `com.squareup.okhttp3:okhttp:4.12.0` and its Okio dependency (Apache-2.0). The custom DNS policy validates the actual address list used for connection while retaining normal TLS hostname verification. Redirects, proxies and automatic retries are disabled; no additional Android permission or service is introduced.
+
 Model weights are not bundled, downloaded automatically, or licensed by this repository. The supplied plan identifies Bonsai Q2_0 as the primary candidate; the owner imports an appropriate GGUF and must retain its original model license. The current editable branding SVG is retained under `assets/`.
 
 No license for the owner's original application source is assumed merely because the repository is public. The owner can add an explicit application license independently.

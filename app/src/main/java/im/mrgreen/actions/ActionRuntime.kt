@@ -15,9 +15,15 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Schema published for orchestration and plan validation. No outbound/destructive operation is auto-approved. */
 data class ToolSchema(val id: String, val description: String, val arguments: Map<String, String>, val risk: String = "low", val permission: String? = null)
+enum class PlanOutcome { VERIFIED, HANDED_OFF, FAILED, PENDING_CONFIRMATION, CANCELLED }
+data class PlanExecutionResult(val outcome: PlanOutcome, val message: String) {
+    val verified: Boolean get() = outcome == PlanOutcome.VERIFIED
+}
 object ActionTools {
     val registry: List<ToolSchema> = listOf(
         ToolSchema("notifications.read", "Read locally collected notification events; special notification access required", emptyMap()),
@@ -96,6 +102,7 @@ private val library = listOf(
 
 /** Rules-first local runtime. Compound steps execute sequentially; state changes always remain user-mediated Android UI. */
 class ActionRuntime(private val context: Context, private val store: GreenStore, private val today: () -> LocalDate = { LocalDate.now() }, private val confirmRisk: (String) -> Boolean = { false }) {
+    private companion object { val executionMutex = Mutex() }
     fun plan(request: String): JSONArray? = planDryRun(request)
 
     /** Pure deterministic planning API; approved DB rule snapshots only change after refreshRules(). */
@@ -158,19 +165,32 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         return executePlan(steps, progress)
     }
 
-    suspend fun executePlan(steps: JSONArray, progress: (String)->Unit = {}): String {
-        if (steps.length() == 0) return "No steps to run."
-        if (steps.length() > 16) return "Stopped: plans are limited to 16 steps."
-        for (i in 0 until steps.length()) { val candidate=steps.optJSONObject(i); if(candidate==null || !ActionTools.validate(candidate)) return "Stopped: unknown tool or invalid arguments in step ${i + 1}." }
+    suspend fun executePlan(steps: JSONArray, progress: (String)->Unit = {}): String = executePlanResult(steps, progress).message
+
+    /** Typed status distinguishes verified completion from handoffs and non-execution. */
+    suspend fun executePlanResult(steps: JSONArray, progress: (String)->Unit = {}): PlanExecutionResult =
+        executePlanResult(steps, progress, isCancelled = { false })
+
+    suspend fun executePlanResult(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult =
+        executionMutex.withLock { executePlanOwned(steps, progress, isCancelled) }
+
+    private suspend fun executePlanOwned(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult {
+        if (steps.length() == 0) return PlanExecutionResult(PlanOutcome.FAILED, "No steps to run.")
+        if (steps.length() > 16) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plans are limited to 16 steps.")
+        for (i in 0 until steps.length()) { val candidate=steps.optJSONObject(i); if(candidate==null || !ActionTools.validate(candidate)) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: unknown tool or invalid arguments in step ${i + 1}.") }
         val outcomes = mutableListOf<String>()
+        var handedOff = false
         for (i in 0 until steps.length()) {
-            val step = steps.optJSONObject(i) ?: return "Stopped: step ${i + 1} is not a valid object."
-            if (!ActionTools.validate(step)) return "Stopped: unknown tool or invalid arguments in step ${i + 1}."
+            if (isCancelled()) return PlanExecutionResult(PlanOutcome.CANCELLED,
+                outcomes.joinToString(" ") + " Stopped: remaining steps cancelled. Earlier actions were not undone.")
+            val step = steps.optJSONObject(i) ?: return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: step ${i + 1} is not a valid object.")
+            if (!ActionTools.validate(step)) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: unknown tool or invalid arguments in step ${i + 1}.")
             val tool = step.getString("tool"); val args = step.optJSONObject("args") ?: JSONObject()
             progress("Running ${i + 1}/${steps.length()}: $tool")
-            if (ActionTools.registry.firstOrNull { it.id == tool }?.risk != "low" && !confirmRisk(tool)) { progress("Pending confirmation ${i + 1}/${steps.length()}: $tool"); return "Pending confirmation: $tool was not run." }
-            val result = try { runTool(tool, args) } catch (e: Exception) {
-                store.log("WARN", "TOOL", "E_TOOL_FAILED", "$tool failed: ${e.javaClass.simpleName}", "foreground")
+            if (ActionTools.registry.firstOrNull { it.id == tool }?.risk != "low" && !confirmRisk(tool)) { progress("Pending confirmation ${i + 1}/${steps.length()}: $tool"); return PlanExecutionResult(PlanOutcome.PENDING_CONFIRMATION, "Pending confirmation: $tool was not run.") }
+            val result = try { runTool(tool, args) } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 ToolResult(false, "Could not complete $tool: ${e.message ?: "Android rejected the request"}")
             }
             if(!result.ok) {
@@ -178,20 +198,25 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
                 if(app!=null) app.logger.write("WARN","TOOL","Registered action failed; tool=$tool",im.mrgreen.core.ErrorCode.E_TOOL_FAILED)
                 else store.log("WARN","TOOL","E_TOOL_FAILED","Registered action failed; tool=$tool","foreground")
             }
-            if (!result.ok) { progress("Failed ${i + 1}/${steps.length()}: $tool"); return "${outcomes.joinToString("; ").let { if(it.isBlank()) "" else "$it. " }}${result.message}" }
+            if (!result.ok) { progress("Failed ${i + 1}/${steps.length()}: $tool"); return PlanExecutionResult(PlanOutcome.FAILED, "${outcomes.joinToString("; ").let { if(it.isBlank()) "" else "$it. " }}${result.message}") }
             progress("Done ${i + 1}/${steps.length()}: $tool")
             outcomes += result.message
+            handedOff = handedOff || !result.verified
         }
-        return outcomes.joinToString(" ")
+        return PlanExecutionResult(if (handedOff) PlanOutcome.HANDED_OFF else PlanOutcome.VERIFIED, outcomes.joinToString(" "))
     }
 
-    private data class ToolResult(val ok:Boolean, val message:String)
+    private data class ToolResult(val ok:Boolean, val message:String, val verified:Boolean = true)
     private suspend fun runTool(id:String,a:JSONObject):ToolResult = when(id) {
         "notifications.read", "calls.missed", "media.play" -> {
             val events=im.mrgreen.events.EventRuntime.shared(context,store)
             val query=when(id){"notifications.read"->"read my notifications";"calls.missed"->"missed calls";else->"play ${if(a.getBoolean("video")) "video" else "music"} ${a.getString("query")}"}
             val message=events.execute(query) ?: "Requested event tool is unavailable."
-            ToolResult(!message.startsWith("Tell me") && !message.contains("needs your",true) && !message.contains("access is off",true),message)
+            val ok = !message.startsWith("Tell me") && !message.contains("needs your",true) &&
+                !message.contains("access is off",true) && !message.contains("Please specify",true) &&
+                !message.startsWith("Could not") && !message.startsWith("No matching") &&
+                !message.contains("no compatible player",true) && message != "Requested event tool is unavailable."
+            ToolResult(ok,message,verified = id != "media.play")
         }
         "clock.time" -> ToolResult(true, "It is ${LocalTime.now().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))}.")
         "clock.date" -> ToolResult(true, "Today is ${today().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))}.")
@@ -202,9 +227,9 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         "note.list" -> listNotes()
         "alarm.set" -> {
             val t=LocalTime.parse(a.getString("time")); val i=Intent(AlarmClock.ACTION_SET_ALARM).putExtra(AlarmClock.EXTRA_HOUR,t.hour).putExtra(AlarmClock.EXTRA_MINUTES,t.minute).putExtra(AlarmClock.EXTRA_MESSAGE,a.optString("label","Mr Green alarm")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No alarm app is available.") else { context.startActivity(i); ToolResult(true,"Pending external verification: opened alarm setup for ${t.format(DateTimeFormatter.ofPattern("h:mm a",Locale.getDefault()))}; confirm/save it in the clock app and verify there before relying on it.") }
+            if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No alarm app is available.") else { context.startActivity(i); ToolResult(true,"Pending external verification: opened alarm setup for ${t.format(DateTimeFormatter.ofPattern("h:mm a",Locale.getDefault()))}; confirm/save it in the clock app and verify there before relying on it.", verified = false) }
         }
-        "timer.set" -> { val seconds=a.getInt("seconds"); if(seconds<1 || seconds>86400) ToolResult(false,"Timer must be between 1 second and 24 hours.") else { val i=Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH,seconds).putExtra(AlarmClock.EXTRA_MESSAGE,a.optString("label","Mr Green timer")).putExtra(AlarmClock.EXTRA_SKIP_UI,false).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No timer app is available.") else { context.startActivity(i); ToolResult(true,"Opened timer setup for ${seconds}s; please confirm it in the clock app.") } } }
+        "timer.set" -> { val seconds=a.getInt("seconds"); if(seconds<1 || seconds>86400) ToolResult(false,"Timer must be between 1 second and 24 hours.") else { val i=Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH,seconds).putExtra(AlarmClock.EXTRA_MESSAGE,a.optString("label","Mr Green timer")).putExtra(AlarmClock.EXTRA_SKIP_UI,false).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No timer app is available.") else { context.startActivity(i); ToolResult(true,"Opened timer setup for ${seconds}s; please confirm it in the clock app.", verified = false) } } }
         "app.open" -> openApp(a.getString("name"))
         "device.battery" -> { val b=context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)); val level=b?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1) ?: -1; val scale=b?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,100) ?: 100; if(level<0) ToolResult(false,"Battery status is unavailable.") else ToolResult(true,"Battery is ${(level*100f/scale).roundToInt()}%.") }
         else -> openSettings(id)

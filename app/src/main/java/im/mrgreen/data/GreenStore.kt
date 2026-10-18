@@ -14,7 +14,16 @@ data class CloudSend(val provider: String, val dataClass: String, val category: 
 class GreenStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "mr-green.db", null, 2) {
     init { setWriteAheadLoggingEnabled(true) }
 
-    override fun onConfigure(db: SQLiteDatabase) { db.setForeignKeyConstraintsEnabled(true) }
+    override fun onConfigure(db: SQLiteDatabase) {
+        db.setForeignKeyConstraintsEnabled(true)
+        // REPLACE deletes the old row. Its FTS cleanup trigger must run before reinsertion.
+        db.execSQL("PRAGMA recursive_triggers=ON")
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        if (!db.isReadOnly) db.execSQL("UPDATE rag_docs SET path='' WHERE path<>''")
+    }
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE identity (id INTEGER PRIMARY KEY CHECK(id=1), name TEXT NOT NULL, persona TEXT NOT NULL DEFAULT '', owner_profile TEXT NOT NULL DEFAULT '', tone TEXT NOT NULL DEFAULT 'helpful', rules TEXT NOT NULL DEFAULT '')")

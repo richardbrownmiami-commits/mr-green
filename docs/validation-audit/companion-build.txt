@@ -1,0 +1,50 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+> Task :companion:preBuild UP-TO-DATE
+> Task :companion:preDebugBuild UP-TO-DATE
+> Task :companion:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :companion:javaPreCompileDebug
+> Task :companion:generateDebugResValues
+> Task :companion:checkDebugAarMetadata
+> Task :companion:mapDebugSourceSetPaths
+> Task :companion:generateDebugResources
+> Task :companion:mergeDebugResources
+> Task :companion:packageDebugResources
+> Task :companion:createDebugCompatibleScreenManifests
+> Task :companion:extractDeepLinksDebug
+> Task :companion:parseDebugLocalResources
+> Task :companion:processDebugMainManifest
+> Task :companion:processDebugManifest
+> Task :companion:mergeDebugShaders
+> Task :companion:compileDebugShaders NO-SOURCE
+> Task :companion:generateDebugAssets UP-TO-DATE
+> Task :companion:mergeDebugAssets
+> Task :companion:compressDebugAssets
+> Task :companion:processDebugJavaRes NO-SOURCE
+> Task :companion:checkDebugDuplicateClasses
+> Task :companion:desugarDebugFileDependencies
+> Task :companion:mergeDebugJniLibFolders
+> Task :companion:mergeExtDexDebug
+> Task :companion:mergeDebugNativeLibs NO-SOURCE
+> Task :companion:stripDebugDebugSymbols NO-SOURCE
+> Task :companion:mergeLibDexDebug
+> Task :companion:mergeDebugJavaResource
+> Task :companion:validateSigningDebug
+> Task :companion:writeDebugAppMetadata
+> Task :companion:writeDebugSigningConfigVersions
+> Task :companion:processDebugManifestForPackage
+> Task :companion:processDebugResources
+
+> Task :companion:compileDebugJavaWithJavac
+Note: /home/ubuntu/mr-green/samples/companion/companion/src/main/java/im/mrgreen/companion/SampleCompanionService.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :companion:dexBuilderDebug
+> Task :companion:mergeProjectDexDebug
+> Task :companion:packageDebug
+> Task :companion:createDebugApkListingFileRedirect
+> Task :companion:assembleDebug
+[Incubating] Problems report is available at: file:///home/ubuntu/mr-green/samples/companion/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 32s
+31 actionable tasks: 31 executed

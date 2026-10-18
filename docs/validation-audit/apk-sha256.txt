@@ -1,0 +1,2 @@
+15354465f0255efd4fc57265ff91a78c94d64df493694f96c999414f695d8ab8  mr-green-0.10.1-audited-preview-debug.apk
+20e025046965e9ace5357eb9f3eef32feb8e390057a3991ef3595ed34745b006  mr-green-0.10.1-audited-preview-release-unsigned.apk

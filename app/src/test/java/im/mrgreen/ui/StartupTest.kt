@@ -77,6 +77,35 @@ class StartupTest {
         Robolectric.buildActivity(OnboardingActivity::class.java).setup().close()
     }
 
+    private fun allViews(view: View): List<View> = listOf(view) +
+        if (view is android.view.ViewGroup) (0 until view.childCount).flatMap { allViews(view.getChildAt(it)) } else emptyList()
+
+    @Test fun unavailableQueueKeepsTheTypedDraft() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.get().getPreferences(0).edit().putBoolean("onboarding_seen", true).commit()
+        controller.create()
+        val views = allViews(controller.get().window.decorView)
+        val entry = views.filterIsInstance<com.google.android.material.textfield.TextInputEditText>().single()
+        entry.setText("keep this draft")
+        views.filterIsInstance<com.google.android.material.button.MaterialButton>().single { it.text.toString() == "Send" }.performClick()
+        assertEquals("keep this draft", entry.text.toString())
+        controller.destroy()
+    }
+
+    @Test @Config(shadows = [PermissionEnvironment::class])
+    fun unloadedModelStartsWithSmallContextAndTwoThreads() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.get().getPreferences(0).edit().putBoolean("onboarding_seen", true).commit()
+        controller.create()
+        controller.get().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(im.mrgreen.R.id.bottom_navigation)
+            .selectedItemId = im.mrgreen.R.id.tab_llama
+        val views = allViews(controller.get().window.decorView)
+        assertEquals(0, views.filterIsInstance<android.widget.SeekBar>().single().progress)
+        val threads = views.filterIsInstance<android.widget.Spinner>().last()
+        assertEquals(Runtime.getRuntime().availableProcessors().coerceIn(1, 2) - 1, threads.selectedItemPosition)
+        controller.destroy()
+    }
+
     @Test fun orbCanConstructAndChangeVisibility() {
         val context = android.view.ContextThemeWrapper(RuntimeEnvironment.getApplication(), im.mrgreen.R.style.AppTheme)
         val orb = OrbView(context)

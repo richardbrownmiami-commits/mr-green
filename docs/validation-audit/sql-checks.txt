@@ -1,0 +1,19 @@
+test_additive_v1_to_v2_preserves_data_and_fts (__main__.StorageSqlTests.test_additive_v1_to_v2_preserves_data_and_fts) ... ok
+test_cache_expiration_and_bounds_sql (__main__.StorageSqlTests.test_cache_expiration_and_bounds_sql) ... ok
+test_cloud_log_is_metadata_only (__main__.StorageSqlTests.test_cloud_log_is_metadata_only) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.017s
+
+OK
+test_exact_dedup_preserves_different_tags_sources_and_importance (__main__.IntegratedStorageTests.test_exact_dedup_preserves_different_tags_sources_and_importance) ... ok
+test_incident_occurrences_have_one_database_owner (__main__.IntegratedStorageTests.test_incident_occurrences_have_one_database_owner) ... ok
+test_legacy_document_paths_are_scrubbed_without_removing_chunks (__main__.IntegratedStorageTests.test_legacy_document_paths_are_scrubbed_without_removing_chunks) ... ok
+test_replace_operations_remove_old_fts_terms (__main__.IntegratedStorageTests.test_replace_operations_remove_old_fts_terms) ... ok
+test_snapshot_is_standalone_and_preserves_original_rows (__main__.IntegratedStorageTests.test_snapshot_is_standalone_and_preserves_original_rows) ... ok
+test_vector_ddl_and_bounded_candidate_query_run_against_actual_schema (__main__.IntegratedStorageTests.test_vector_ddl_and_bounded_candidate_query_run_against_actual_schema) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.035s
+
+OK

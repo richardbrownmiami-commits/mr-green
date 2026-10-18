@@ -1,72 +1,113 @@
-# Integrated build and phone test status
+# Mr Green 0.10.1: audit and test report
 
-**Mr Green 0.10.0-integrated-preview, versionCode 9.** One integrated `im.mrgreen` app; root roadmap modules are joined rather than separate phase APKs. Base commit: `92483cc7df3103ecb5f36630004e92ea96fe59a2`. SkillBot was not modified.
+**0.10.1-audited-preview, versionCode 10.** Changes start from public main `f5530d75fce9becf2a51aa6d35eb85fd5c651afd`. The app remains one **`im.mrgreen`** application for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit `armeabi-v7a` only**. SkillBot was not touched.
 
-**Host build/regression checks pass. No Redmi/on-device acceptance test was run.** This report does not declare every requirement in `plan.md` complete. Clock verification, generated playlists, optional cloud vision and several device-dependent paths remain incomplete or unverified; see [implementation limits](implementation-status.md).
+**The build, host regressions and package checks pass. No Redmi or other Android device test was run.** Reviewing the repository and passing these checks does not prove that every roadmap feature is complete or that no further bugs remain.
 
-## Build-computer results
+## Important: screen reading is blocked on Android 11
+
+The audit found an unsafe assumption: a successful display screenshot does not prove that a separately read accessibility tree belongs to a non-secure window. Android's window-targeted screenshot API and explicit secure-window error were added in API 34; see the [official API reference](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService).
+
+**Screen reading now fails closed on API 30–33, including the target Redmi.** The setup screen explains this rather than asking for unusable access. API 34+ code uses window-targeted capture, checks window/package identity and transition events, and discards unsafe results. That newer path is not device-tested and is not an atomic pixel/tree guarantee. A safe Android 11 implementation is still a feature gap. No cloud-screen workaround or privacy bypass was added.
+
+## Fixed and connected in code
+
+- **Action results and cancellation:** typed outcomes separate verified results, external handoffs, failures, confirmation pauses and cancellation. Clock/media handoffs no longer become learned successes or routine failures. Compound steps are serialized across chat, reviewed plans and plugin runtime instances. A chat/service cancellation stops remaining registered steps without claiming earlier effects were undone.
+- **Chat and model defaults:** rejected submissions preserve the draft. Model controls and engine defaults agree on 512 context / 2 threads. Negative native token counts fail closed instead of making a prompt appear smaller. Native unload signals abort before waiting for the generation mutex.
+- **Runtime and incidents:** connection setup is idempotent. The logger owns incident occurrence counting; the learning notification no longer counts the same incident again. Thrown action failures also avoid a second log/count.
+- **Diagnostics and permissions:** new diagnostics always stay app-private, even with broad storage access. Accessibility and notification access checks match exact Android components instead of substring/package approximations. Earlier shared diagnostic files are not automatically deleted.
+- **Screen-extracted alarms:** confirmed AM/PM times retain their meaning, including noon/midnight. Invalid input is rejected rather than silently becoming midnight. The Android 11 screen gate above still prevents capture there.
+- **Companions:** invocation re-inspects the currently signer-approved service and requires the tool to be advertised as well as reviewed. IPC has bounded waits/replies, rejects oversized UTF-8 results rather than silently truncating them, and refuses blocking exchanges on the main thread. Exact-argument confirmation remains.
+- **Knowledge and MCP:** import cancellation is no longer reset after extraction. New imports neither retain source URI paths nor request persistent grants; existing database paths are scrubbed without deleting imported chunks. MCP replies must correlate to the request and contain a successful result. Authorization now carries immutable per-call public arguments and the displayed endpoint rather than shared review flags.
+- **Public HTTPS:** web/search/MCP use connection-time public-only DNS validation with normal TLS verification, no redirects/proxies/automatic retries, response caps and a total deadline. Tests cover rebinding answers and mixed public/private address lists. This is not a live traffic or exhaustive network penetration test.
+- **Doctor and storage:** applied proposals now expose confirmed Undo. Manual duplicate cleanup shares the automatic ten-row bound. **The original automatic cleanup already preserved unique facts; no existing fact-loss defect was established.** Production-SQL tests cover this bound and metadata preservation. Recursive delete triggers now clean old FTS terms during `REPLACE`, avoiding stale search entries.
+
+Permission checks, important-action confirmations, plugin validation and private-source restrictions remain. **No blanket local reply filter was added.** Local conversation memory remains a bounded lexical-vector index, not neural embeddings; prompts contain the current question plus at most two relevant budgeted snippets. The native identical-prefix cache remains in place.
+
+## What passed on the build computer
 
 | Check | Result |
 |---|---|
-| Final Gradle gate | **PASS:** `:app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug` |
-| JVM/Robolectric tests | **161 discovered; 158 passed, 0 failures/errors, 3 existing skips.** Includes retained gateway/Rive/plugin tests and new routing, schema, screen, learning, extension crypto/policy, vector-feature and media-clarification regressions. |
-| Production SQL | **6 checks passed:** the three retained migration/audit/cache checks plus snapshot/FTS preservation, executable vector-candidate query and exact-dedup metadata preservation. Host SQLite is not Android/requery evidence. |
-| QuickJS native host harness | Passed API/dynamic-code restrictions, heap/quota, loop and serialization deadline checks. This is host execution, not ARMv7 execution. |
-| Optional companion sample | **PASS:** standalone `:companion:assembleDebug`; Java-only demonstration of the versioned Messenger `demo.echo` contract. Binder execution on phone remains untested. |
-| Lint | **0 errors, 255 warnings.** Warnings include legacy/platform deprecations, programmatic UI localization/accessibility/style warnings and deliberate synchronous crash-journal commits. Warnings are not hidden or presented as zero. |
-| Native compiler/package audit | **PASS:** 83 ARMv7 Android translation units at effective `-O3`; ELF32 ARM libraries only under `lib/armeabi-v7a/`. No arm64/GPU/OpenMP/KleidiAI backend is intended or enabled. |
-| Native libraries | `libmrgreen.so`, `libmrgreen_quickjs.so`, `libsqlite3x.so`, `libc++_shared.so` |
-| App/platform identity | `im.mrgreen`; minSdk 26; targetSdk 30; compile SDK/build-tools 36; NDK 27.2.12479018; JDK 17; CMake 3.22.1 |
-| Development APK signing | Both delivered APKs verify with Android `apksigner`. The release variant is **development-signed**, not owner production signing. Gradle also produces an unsigned release. |
-| Privacy/source/package audit | Heuristic credential-pattern, packaged-private-file and explicit-permission-set audits are retained with an integrated-scope option. These are not proof of runtime traffic behavior. |
-| Redmi, real GGUF inference, live Groq, Android Keystore/SQLite migration, MIUI, native patches, Binder, FPS/RAM | **NOT RUN.** No live key was requested or used. |
+| Final Gradle gate | **PASS:** `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease` |
+| JVM/Robolectric | **187 discovered: 184 passed, 0 failures/errors, 3 existing skips.** No skips added. |
+| Lint | **0 errors, 258 warnings.** Includes existing platform, UI/localization/accessibility and synchronous-journal warnings; not reported as warning-free. |
+| Production SQL | **9 passed:** 3 migration/cache/audit checks and 6 integrated checks for snapshots, vectors, duplicate metadata, incident counts, FTS replacements and legacy URI cleanup. Host SQLite/shadows are not Android/requery evidence. |
+| Python extension guards | **3 passed.** Source guardrails, not runtime Binder proof. |
+| Native QuickJS host harness | Passed result/host contract, ambient API/dynamic-code restrictions, heap, call quota, loop and serialization deadline checks. Not ARMv7 execution. |
+| Real GGUF / production JNI | **PASS on the host:** SmolLM2-135M-Instruct Q4_K_M load, streaming and progress, token cancellation, prompt-stage cancellation, request after cancellation and unload. A separate toy GGUF without an embedded template loaded but correctly failed chat rather than using a fabricated template. |
+| Optional companion sample | **PASS:** `:companion:assembleDebug`. No cross-process phone invocation was performed. |
+| Native build/package | **PASS:** 83 translation units use ARMv7 Android and effective `-O3`; all four native libraries are ELF32 ARM under `lib/armeabi-v7a/`. Both main APKs pass the ABI check. |
+| Privacy/identity package scan | Passed supported credential-pattern/environment-value scans, expected permission set, no packaged private/model files and retained app/platform identity. Heuristic scans do not prove runtime traffic behavior. |
+| Signing | Debug APK signature verifies. Release APK is deliberately **unsigned**, awaiting the owner's key. |
 
-Evidence is in [final validation](validation-integrated/final/): build logs, test summary, SQL checks, native flags, ABI audit, signatures and [APK SHA-256 hashes](validation-integrated/final/apk-sha256.txt). Historical phase reports remain historical, not current totals.
+The three existing skipped tests are the bundled-requery `GreenStoreTest` migration/cache/audit tests that cannot load the ARM-only SQLite library on this host. Their host-SQL counterparts run, but actual Android SQLite integration remains unverified. Two new test-fixture failures were corrected before the final pass; tests were not removed or newly skipped.
 
-## A1–A35: run these on the Redmi
+Evidence: [build gate](validation-audit/build-gate.txt), [test/lint summary](validation-audit/test-summary.txt), [SQL](validation-audit/sql-checks.txt), [QuickJS/Python](validation-audit/quickjs-and-extension-tests.txt), [GGUF host smoke](validation-audit/host-gguf-smoke.txt), [companion build](validation-audit/companion-build.txt), [ABI](validation-audit/apk-abi.txt), [native build](validation-audit/native-build-audit.txt), [privacy package audit](validation-audit/privacy-package-audit.txt), [APK identity](validation-audit/apk-identity.txt) and [debug signature](validation-audit/debug-signature.txt).
 
-Every phone result below is **NOT RUN**. Host coverage is noted separately and must not be relabeled as a device pass.
+## Builds and installation safety
+
+The release assets contain the same integrated application in two forms:
+
+- `mr-green-0.10.1-audited-preview-debug.apk`: installable, development-signed test build.
+- `mr-green-0.10.1-audited-preview-release-unsigned.apk`: **not installable until signed**; intended for the owner's release-signing process.
+
+Both retain minSdk 26, targetSdk 30 and ARMv7-only libraries. Compile SDK/build-tools 36, NDK 27.2.12479018, JDK 17 and CMake 3.22.1 are build tools, not a change to the target phone.
+
+[SHA-256 checksums](validation-audit/apk-sha256.txt):
+
+```text
+15354465f0255efd4fc57265ff91a78c94d64df493694f96c999414f695d8ab8  mr-green-0.10.1-audited-preview-debug.apk
+20e025046965e9ace5357eb9f3eef32feb8e390057a3991ef3595ed34745b006  mr-green-0.10.1-audited-preview-release-unsigned.apk
+```
+
+**A data-preserving update is not verified.** The development key may differ from the owner's installed app. If Android reports a signature mismatch, stop: **do not uninstall or clear data**. Build/sign with the original key instead. No phone app/data operation was performed.
+
+## Remaining gaps
+
+Clock save/database verification, generated `.m3u` playlists, Android 11 screen assistance and optional cloud-screen vision are not implemented as complete verified features. MCP is a bounded JSON POST client, not a full session/OAuth/Streamable HTTP/SSE implementation; strict servers may not interoperate. Legacy OS-held URI grants from older imports are not automatically revoked.
+
+Redmi/MIUI behavior, real Android Keystore/requery migration, live Groq/provider requests, actual owner-selected GGUF compatibility/performance, third-party recipes, Binder IPC and native replacement-patch loading remain untested. The host SmolLM2 test is **not** certification of Bonsai, Qwen or an uncensored-tuned GGUF. No uncensored-model compatibility or phone-speed result is claimed. Permission/confirmation and plugin/privacy gates were not weakened for model testing.
+
+## A1–A35: phone acceptance is still outstanding
+
+Every phone result is **NOT RUN**; some are also blocked by known missing features. Host tests above must not be relabeled as phone passes.
 
 | Test | What to check / current caveat |
 |---|---|
-| A1 | Time, `17% of 2450`, date +45 days use tools in under 1 second. Host routing/arithmetic tests pass; phone timing unknown. |
-| A2 | Clock saves the requested alarm/day and DB state agrees. Current handoff is explicitly pending external verification; a Clock intent is not a saved alarm. |
-| A3 | Note file and DB row read back; `check notes` lists it. Production code verifies read-back; Android filesystem/SQLite needs testing. |
-| A4 | Alarm label and linked note are correct. Note/label planning exists; fully verified Clock/DB linkage is not established. |
-| A5 | Calculator → time → flashlight execute in order, with progress and one final result. Grant Camera only for this test. |
-| A6 | Media asks for a title, accepts a short follow-up and hands off to a player. Check actual requested playback; active audio is not track identity. Generated playlists are not included. |
-| A7 | Opted-in missed-call/notification event creates a generic proactive alert within 10 seconds; check quiet hours/allowlist. |
-| A8 | Review a local typed plan with alarm/notification/media steps; verify all external outcomes. Missing arguments require clarification, not guessed defaults. |
-| A9 | Three equivalent verified successful episodes propose a routine; approval enables deterministic reuse; rejection remains inactive. |
-| A10 | A fetched web answer has a real source and a reusable cached recipe; live providers were not exercised. |
-| A11 | Import representative TXT/PDF/EPUB, inspect cited chunks and measure indexing RAM. |
-| A12 | Harmless confirmed WhatsApp send and Meta AI/Gemini prompt/result; change a label and confirm a safe mismatch error. |
-| A13 | Five days/restarts, MIUI restrictions reviewed, peak RAM <1.2 GB target/<2 GB hard cap, no crashes. No longevity result exists. |
-| A14 | Failed registered action creates one deduplicated Doctor card promptly; inspect occurrence count and metadata-only report. |
-| A15 | Failed phrase + known working equivalent → reviewed typed diff → intended-plan/golden replay → explicit approval/rejection. |
-| A16 | Reject identity/permission/registry/code edits, arbitrary SQL, invalid operations, unknown keys and oversized changes. Host validator tests cover representative rejects. |
-| A17 | A candidate that breaks golden plans is rejected; inspect the failure. Actual native-SQL replay remains device pending. |
-| A18 | Undo restores exact recorded rows. Test staged snapshot restore at a full restart; database only, not model/preferences/files. Host snapshot SQL check passes. |
-| A19 | Idle/battery gating and user-input cancellation; measure latency. An active SQLite statement is not a hard one-second interrupt. |
-| A20 | Java/native interruption or permission failure leaves useful diagnostics and no guessed DB fix. Native interruption is not itself a native backtrace. |
-| A21 | Automatic exact-duplicate cleanup, FTS maintenance, log pruning, snapshot and disable switch. Host dedup preserves distinct tags/source/importance. |
-| A22 | Owner-configured Groq online, local offline and 429 fallback/backoff; inspect the mode badge and metadata-only send log. Synthetic host checks pass. |
-| A23 | Redaction/P2 no-send, credentials absent from APK/log/export; synthetic policy tests and heuristic packaging audit are not runtime traffic proof. |
-| A24 | At least 90% of the 200 golden phrasings route without AI; host fixture test passes. Test priorities, negatives, pack rollback and cap on phone. |
-| A25 | Install a reviewed signed flow pack; inspect permissions/tests/size and rollback. |
-| A26 | QuickJS host-only API, loop <5 seconds, heap cap and crash safe mode on ARMv7. Native host harness passes separately. |
-| A27 | Wrong companion signer rejected; correct installed signer pinned; reviewed tool invokes with exact confirmed args. Host trust policy/sample build pass; real Binder is untested. |
-| A28 | Reviewed signed ARMv7 patch loads after restart; wrong signature rejected; repeated interrupted operations enter fallback/rollback. Host crypto/policy simulations pass; no replacement library was loaded on a phone. |
-| A29 | Bubble drag/edge snap, rotation and capture-before-panel; measure <500 ms panel latency. |
-| A30 | Local summary, tap list, confirmed extract actions and correct visual highlights. |
-| A31 | Secure window/password/blocklist fails closed and yields no usable snapshot. Host policy tests are not API 30 proof. |
-| A32 | Local-only screen mode sends no network. **Cloud-screen/vision branch is not implemented**, so the full optional-cloud variant cannot pass yet. |
-| A33 | Measure ≥55 fps, cold start <3 s, UI overhead ~80 MB and idle overlay <25 MB. None is inferred from Robolectric. |
-| A34 | Live permission checklist/deep links/Test controls; verify actual Android/MIUI state changes. |
-| A35 | Main app and overlay theme/accent update without restart; separately inspect system/third-party surfaces. |
+| A1 | Time, arithmetic and date offset run correctly and meet timing; host routing/math is not phone timing. |
+| A2 | Clock saves the requested alarm/day and DB state agrees. Current setup is an unverified external handoff. |
+| A3 | Note file and DB row read back; `check notes` lists it on Android. |
+| A4 | Alarm label and linked note agree with the actual saved Clock entry. |
+| A5 | Compound app/time/flashlight actions stay ordered; cancellation prevents remaining steps. |
+| A6 | Media clarification and player handoff; verify the actual track. Generated playlists are missing. |
+| A7 | Opted-in missed-call/notification events, proactive timing, quiet hours and allowlist. |
+| A8 | Review typed plans; verify external effects rather than intent returns. |
+| A9 | Verified successful episodes propose routines; handoffs/confirmation pauses do not count as verified success or failure. |
+| A10 | Live web answer has a real source; recipes/cache work against current providers. |
+| A11 | Representative TXT/PDF/EPUB imports, citations, cancellation and indexing RAM. |
+| A12 | Harmless reviewed WhatsApp/Meta AI/Gemini recipes, real recipient/prompt and mismatch stops. |
+| A13 | Five-day MIUI/restart survival, RAM caps and crashes. No longevity result exists. |
+| A14 | One deduplicated Doctor incident occurrence per failure, with metadata-only reporting. |
+| A15 | Misunderstood phrase → working equivalent → validated typed diff → explicit approval/rejection. |
+| A16 | Reject identity/permission/code/registry edits, arbitrary SQL, unknown/oversized operations. |
+| A17 | Reject repairs that break the golden plans; real native-SQL replay remains pending. |
+| A18 | Confirmed Undo restores recorded rows; staged DB snapshot restore works after a full restart. |
+| A19 | Idle/battery gating and cancellation latency. Active SQL is not a hard real-time interrupt. |
+| A20 | Useful Java/native interruption diagnostics; no guessed repair or invented native backtrace. |
+| A21 | Bounded exact-duplicate cleanup, FTS replacement/rebuild, log pruning and snapshots. |
+| A22 | Owner-configured Groq online/offline/429 behavior and metadata-only audit. No live key was used here. |
+| A23 | Private-source no-send and no credentials in runtime logs/exports/network traffic. Static scans are not traffic proof. |
+| A24 | At least 90% of 200 golden phrases route without AI; phone priorities, negatives and rollback. |
+| A25 | Reviewed signed flow pack permissions, cap, execution and rollback. |
+| A26 | ARMv7 QuickJS execution, deadlines, heap/quota and safe mode. Host harness is separate. |
+| A27 | Real Binder signer rejection/pinning, advertised/reviewed tool and exact confirmed arguments. |
+| A28 | Correctly signed ARMv7 replacement patch, Android linker/JNI behavior, bad-signature rejection and fallback. |
+| A29 | Bubble/panel UX. On API 30, a tap must show unavailable/denied without reading the tree. |
+| A30 | Screen summary/extraction/highlights are **blocked on the target Android 11** pending a safe implementation. |
+| A31 | API 30 capture fails closed; independently validate API 34+ secure/password/blocklist and window-transition behavior. |
+| A32 | No screen network sends. Optional cloud-screen/vision is not implemented. |
+| A33 | FPS, cold start, UI/overlay overhead and peak RAM; none is inferred from Robolectric. |
+| A34 | Live permission checklist and Android/MIUI deep-link behavior. |
+| A35 | Main/overlay themes and accents; separately inspect system/third-party surfaces. |
 
-## Installation safety
-
-The signing key is a builder development key. This is **not a verified in-place update** of the owner's installed APK. If Android reports a mismatch, do not uninstall, clear data or re-sign the old app; use the original key to build an update. No phone app/data operation was performed.
-
-See the [phone guide](user-guide.md), [VERIFY register](verify-status.md), and [detailed implementation limits](implementation-status.md). Native stack traces, real inference/performance and device acceptance remain the owner's next tests.
+See the [phone guide](user-guide.md), [implementation limits](implementation-status.md), and [VERIFY register](verify-status.md).

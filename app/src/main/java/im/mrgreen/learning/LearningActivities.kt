@@ -51,6 +51,21 @@ class DoctorActivity : Activity() {
             val row=LinearLayout(this)
             if(p.state=="proposed") row.addView(Button(this).apply{text="Approve";setOnClickListener{r?.approveDoctor(p.id);render()}})
             if(p.state=="proposed") row.addView(Button(this).apply{text="Reject";setOnClickListener{r?.rejectDoctor(p.id);render()}})
+            if(p.state=="applied") row.addView(Button(this).apply {
+                text="Undo"
+                setOnClickListener {
+                    android.app.AlertDialog.Builder(this@DoctorActivity).setTitle("Undo Doctor proposal #${p.id}?")
+                        .setMessage("Restore the stored data rows changed by this proposal. Later edits to those same rows may be replaced. This does not restore models, preferences or external actions.")
+                        .setNegativeButton("Cancel",null).setPositiveButton("Undo changes") { _,_->
+                            isEnabled=false
+                            Thread {
+                                val message=try { if(r?.undoDoctor(p.id)==true) "Changes undone." else "Undo was not applied." }
+                                    catch(e:Exception) { "Undo failed: ${e.javaClass.simpleName}" }
+                                runOnUiThread { render(); android.widget.Toast.makeText(this@DoctorActivity,message,android.widget.Toast.LENGTH_LONG).show() }
+                            }.start()
+                        }.show()
+                }
+            })
             list.addView(row)
         }
         list.addView(Button(this).apply{text="Run non-model maintenance";setOnClickListener{Thread { val message=try{r?.maintain()?:"Runtime unavailable"}catch(e:Exception){"Maintenance failed: ${e.javaClass.simpleName}"};runOnUiThread{list.addView(TextView(this@DoctorActivity).apply{text=message})} }.start()}})

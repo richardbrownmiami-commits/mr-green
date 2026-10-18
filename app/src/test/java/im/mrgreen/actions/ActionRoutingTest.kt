@@ -10,6 +10,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30], application = android.app.Application::class)
@@ -93,6 +96,66 @@ class ActionRoutingTest {
         val context=RuntimeEnvironment.getApplication(); val runtime=ActionRuntime(context, GreenStore(context))
         val steps=org.json.JSONArray().put(org.json.JSONObject().put("tool","note.save").put("args",org.json.JSONObject().put("text","should not be written"))).put(org.json.JSONObject().put("tool","no.such.tool").put("args",org.json.JSONObject()))
         assertTrue(runtime.executePlan(steps).startsWith("Stopped:"))
+    }
+
+    @Test fun cancellationStopsRemainingCompoundSteps() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val runtime = ActionRuntime(context, GreenStore(context))
+        val steps = runtime.plan("calculate 2 plus 3 and then calculate 8 minus 4")!!
+        var cancelled = false
+        var completed = 0
+        val result = runtime.executePlanResult(steps, progress = {
+            if (it.startsWith("Done")) { completed++; cancelled = true }
+        }, isCancelled = { cancelled })
+        assertEquals(1, completed)
+        assertEquals(PlanOutcome.CANCELLED, result.outcome)
+        assertTrue(result.message.contains("Earlier actions were not undone"))
+    }
+
+    @Test fun compoundPlansCannotInterleaveAcrossRuntimeInstances() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val one = ActionRuntime(context, GreenStore(context))
+        val two = ActionRuntime(context, GreenStore(context))
+        val steps = one.plan("calculate 2 plus 3 and then calculate 8 minus 4")!!
+        val entered = CompletableDeferred<Unit>()
+        val order = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val first = async(Dispatchers.Default) {
+            one.executePlanResult(steps) { progress ->
+                if (progress.startsWith("Running")) {
+                    order.add("first"); entered.complete(Unit); Thread.sleep(100)
+                }
+            }
+        }
+        entered.await()
+        val second = async(Dispatchers.Default) {
+            two.executePlanResult(steps) { if (it.startsWith("Running")) order.add("second") }
+        }
+        assertTrue(first.await().verified)
+        assertTrue(second.await().verified)
+        assertEquals(listOf("first", "first", "second", "second"), order.toList())
+    }
+
+    @Test fun typedExecutionDistinguishesVerifiedResultsAndClockHandoffs() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val runtime = ActionRuntime(context, GreenStore(context))
+        val math = org.json.JSONArray().put(org.json.JSONObject().put("tool", "math.calculate").put("args", org.json.JSONObject().put("expression", "2+3")))
+        assertEquals(PlanOutcome.VERIFIED, runtime.executePlanResult(math).outcome)
+        val alarm = org.json.JSONArray().put(org.json.JSONObject().put("tool", "alarm.set").put("args", org.json.JSONObject().put("time", "07:00").put("label", "test")))
+        val resolved = android.content.pm.ResolveInfo().apply {
+            activityInfo = android.content.pm.ActivityInfo().apply {
+                packageName = "test.clock"; name = "test.clock.AlarmActivity"
+                applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = "test.clock" }
+            }
+        }
+        org.robolectric.Shadows.shadowOf(context.packageManager).addResolveInfoForIntent(
+            android.content.Intent(android.provider.AlarmClock.ACTION_SET_ALARM), resolved)
+        val result = runtime.executePlanResult(alarm)
+        assertEquals(PlanOutcome.HANDED_OFF, result.outcome)
+        assertEquals(false, result.verified)
+        val launched = org.robolectric.Shadows.shadowOf(context).nextStartedActivity
+        assertEquals(7, launched.getIntExtra(android.provider.AlarmClock.EXTRA_HOUR, -1))
+        assertEquals(0, launched.getIntExtra(android.provider.AlarmClock.EXTRA_MINUTES, -1))
+        assertEquals(result.message, runtime.executePlan(alarm))
     }
 
 }

@@ -2,7 +2,7 @@ package im.mrgreen.engine
 
 /** Local-only llama.cpp facade. Native failures are represented as EngineResult, never asserted as success. */
 data class ChatTurn(val role: String, val content: String)
-data class LoadParams(val nCtx: Int = 2048, val nBatch: Int = 128, val nUbatch: Int = 64, val threads: Int = 4)
+data class LoadParams(val nCtx: Int = 512, val nBatch: Int = 128, val nUbatch: Int = 64, val threads: Int = 2)
 data class GenerationOptions(
     val maxTokens: Int = 256,
     val temperature: Float = .7f,

@@ -1,0 +1,17 @@
+...                                                                      [100%]
+3 passed in 0.02s
+PASS normal result
+PASS host method/args JSON contract
+PASS undefined result serialized as null
+PASS no ambient modules/platform/network
+PASS constructor eval blocked
+PASS constructor eval blocked
+PASS constructor eval blocked
+PASS constructor eval blocked
+PASS dynamic code/import blocked
+PASS dynamic code/import blocked
+PASS dynamic code/import blocked
+PASS heap limit
+PASS uncatchable 50-call quota
+PASS infinite loop stopped within five seconds
+PASS deadline applies to result serialization

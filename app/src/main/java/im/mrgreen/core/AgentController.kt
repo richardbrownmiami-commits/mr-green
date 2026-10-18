@@ -190,17 +190,17 @@ object AgentController {
         }
     }
 
-    fun submit(context: Context, prompt: String) {
+    fun submit(context: Context, prompt: String): Boolean {
         val text = prompt.trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() || !initialized.get()) return false
         if (initialized.get()) app.roadmap.health.onUserInput()
-        enqueue(context) {
+        return enqueue(context) {
             cancelled.set(false)
             if (text.length > 12_000) {
                 fail("Message is too long for the small local context. Please shorten it.", ErrorCode.E_LLM_CONTEXT)
                 return@enqueue
             }
-            val integratedReply = try { app.roadmap.execute(text) { status -> mutable.update { it.copy(mode = "Local", status = status, streaming = "") } } }
+            val integratedReply = try { app.roadmap.execute(text, isCancelled = { cancelled.get() }) { status -> mutable.update { it.copy(mode = "Local", status = status, streaming = "") } } }
                 catch (_: Exception) { "That action could not complete safely. Check permissions and the capability screen; no success is claimed." }
             if (integratedReply != null) {
                 app.store.addMessage("user", text); app.store.addMessage("assistant", integratedReply)
@@ -241,7 +241,7 @@ object AgentController {
             val maxTokens = 128
             val budget = (mutable.value.stats.nCtx - maxTokens - 96).coerceAtLeast(128)
             fun currentQuestion():String = if(snippets.isEmpty()) text else "<recalled-notes>\n" + snippets.joinToString("\n") { org.json.JSONObject().put("message_id",it.messageId).put("role",it.role).put("text",it.text).toString() } + "\n</recalled-notes>\nCurrent question: " + text
-            fun tokenCost() = engine.countTokens(system.content) + engine.countTokens(currentQuestion()) + 24
+            fun tokenCost() = TokenBudget.total(listOf(engine.countTokens(system.content), engine.countTokens(currentQuestion())), 24)
             while(snippets.isNotEmpty() && tokenCost()>budget) snippets.removeAt(snippets.lastIndex)
             if (tokenCost() > budget) {
                 fail("Question does not fit the loaded model context. Please shorten it.", ErrorCode.E_LLM_CONTEXT)
@@ -344,7 +344,7 @@ object AgentController {
                 mutable.update { it.copy(mode = "Local", status = "Drafting locally…", generating = true, streaming = "") }
                 if (ensureLocalReady() && !cancelled.get()) {
                     val budget = (mutable.value.stats.nCtx - 256 - 96).coerceAtLeast(128)
-                    if (engine.countTokens(system) + engine.countTokens(text) + 24 <= budget) {
+                    if (TokenBudget.total(listOf(engine.countTokens(system), engine.countTokens(text)), 24) <= budget) {
                         val out = StringBuilder()
                         val result = withWakeLock {
                             engine.generate(turns, GenerationOptions(maxTokens = 256)) { token -> if (out.length < 16_000) out.append(token.take(16_000 - out.length)) }
@@ -375,7 +375,7 @@ object AgentController {
                 if (reply == null) {
                     if (!ensureLocalReady()) error("Load a local GGUF model first")
                     val budget = mutable.value.stats.nCtx - 192
-                    require(turns.sumOf { engine.countTokens(it.content) + 12 } <= budget) { "Context exceeds the loaded model budget. Select less text or increase context safely." }
+                    require(TokenBudget.total(turns.map { engine.countTokens(it.content) }, turns.size * 12) <= budget) { "Context exceeds the loaded model budget. Select less text or increase context safely." }
                     mutable.update { it.copy(mode = "Local", status = "Reading locally…", generating = true) }
                     val out = StringBuilder()
                     val result = withWakeLock { engine.generate(turns, GenerationOptions(maxTokens = 128)) { token -> if(out.length < 16000) out.append(token) } }
@@ -384,6 +384,7 @@ object AgentController {
                 }
                 answer.complete(reply ?: "No answer produced")
             } catch(e: Exception) { answer.completeExceptionally(e) }
+            catch(e: OutOfMemoryError) { answer.completeExceptionally(e); throw e }
         }
         check(accepted) { "Assistant is busy. Try again after the current request." }
         return answer.await()

@@ -12,7 +12,7 @@ Go to **Overview → All capabilities · Phases 3–10**. All modules use the sa
 
 Start with the live setup checklist. Grant only the access you need:
 
-- Overlay/Accessibility for explicit screen captures and UI recipes.
+- Accessibility only for the UI recipes you choose. Screen reading is unavailable on Android 11; do not enable access expecting that feature to work.
 - Notification access for new notification events. Text retention starts off.
 - Optional Call log and local media permissions for those features.
 - Camera for the flashlight; microphone/offline voice packs only for voice controls.
@@ -51,7 +51,7 @@ Review MIUI Autostart, battery “No restrictions,” Recents lock, pop-up and l
 
 ## Screen and app recipes
 
-Grant accessibility/overlay yourself, then invoke a one-shot capture. Test an ordinary page, a password field, a blocklisted app and a secure window. Protected captures must fail closed. Check extracted-item confirmation and highlight positions.
+**On the target Redmi/Android 11, screen reading is disabled for privacy.** A successful display screenshot cannot verify that a separately read accessibility tree is safe. A bubble tap must show an unavailable/denied result without reading screen contents. This is a known functional gap, not a passed screen-assistant gate. API 34+ uses window-targeted capture and still needs separate device testing.
 
 Screen questions stay **local-only**; screenshot-to-cloud vision is not implemented. No OCR/vision model is added. WhatsApp sends and external AI-app prompts need explicit review; verify the real recipient/text and outcome. Use harmless test content first. A changed/missing control must stop the recipe, not continue guessing.
 

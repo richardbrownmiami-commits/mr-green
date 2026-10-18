@@ -5,6 +5,13 @@ import org.junit.Test
 
 /** Host JVM deliberately has no Android JNI library; these test honest failure behavior only. */
 class LlamaEngineTest {
+    @Test fun defaultLoadBudgetIsConservativeForRedmi9() {
+        assertEquals(512, LoadParams().nCtx)
+        assertEquals(2, LoadParams().threads)
+        assertEquals(128, LoadParams().nBatch)
+        assertEquals(64, LoadParams().nUbatch)
+    }
+
     @Test fun nativeCancellationIsNotClassifiedAsInferenceFailure() {
         assertTrue(EngineResult(false, "Generation cancelled").cancelled)
         assertFalse(EngineResult(false, "Prompt llama_decode failed (rc=1)").cancelled)

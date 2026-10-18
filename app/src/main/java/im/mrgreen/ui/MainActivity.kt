@@ -138,6 +138,7 @@ class MainActivity : AppCompatActivity() {
             labelVisibilityMode = BottomNavigationView.LABEL_VISIBILITY_LABELED
             setOnItemSelectedListener { item -> selected=item.itemId; when(item.itemId){R.id.tab_chat->showChat();R.id.tab_panel->showPanel();R.id.tab_llama->showLlama();R.id.tab_logs->showLogs();R.id.tab_files->showFiles()}; true }
         }
+        nav.menu.findItem(selected)?.isChecked = true
         navView = nav
         root.addView(nav, LinearLayout.LayoutParams(-1,dp(72))); setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
@@ -197,8 +198,10 @@ class MainActivity : AppCompatActivity() {
             if (stream.isNotEmpty()) updateStream(stream)
         }
     }
-    private fun send() { val prompt=entry.text?.toString()?.trim().orEmpty(); if(prompt.isBlank() || AgentController.state.value.busy)return
-        entry.setText(""); lifecycleScope.launch { addBubble("user",prompt); AgentController.submit(this@MainActivity,prompt) }
+    private fun send() {
+        val prompt=entry.text?.toString()?.trim().orEmpty()
+        if(prompt.isBlank() || AgentController.state.value.busy)return
+        if(AgentController.submit(this,prompt)) { entry.setText(""); addBubble("user",prompt) }
     }
     private fun updateStream(text:String) {
         if(selected!=R.id.tab_chat || !::transcript.isInitialized || !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
@@ -244,11 +247,11 @@ class MainActivity : AppCompatActivity() {
         card(getString(R.string.models_title),if(models.isEmpty())getString(R.string.no_models) else models.joinToString("\n"){ "${it.name} · ${it.length()/1048576} MB" })
         val modelChoice=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,if(models.isEmpty()) listOf(getString(R.string.no_models)) else models.map{it.name}); isEnabled=models.isNotEmpty()&&s.stats.loadedModel==null }
         body.addView(TextView(this).apply{text=getString(R.string.model_to_load);setTextColor(mint)}); body.addView(modelChoice)
-        val contextSeek=SeekBar(this).apply { max=1536; progress=((if(s.stats.nCtx > 0) s.stats.nCtx else 2048).coerceIn(512,2048)-512); isEnabled=s.stats.loadedModel==null }
+        val contextSeek=SeekBar(this).apply { max=1536; progress=((if(s.stats.nCtx > 0) s.stats.nCtx else LoadParams().nCtx).coerceIn(512,2048)-512); isEnabled=s.stats.loadedModel==null }
         body.addView(TextView(this).apply { text=getString(R.string.context_control,512+contextSeek.progress); setTextColor(mint); id=R.id.context_label })
         contextSeek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(b:SeekBar?,p:Int,u:Boolean){findViewById<TextView>(R.id.context_label)?.text=getString(R.string.context_control,512+p)}; override fun onStartTrackingTouch(b:SeekBar?){}; override fun onStopTrackingTouch(b:SeekBar?){} }); body.addView(contextSeek)
         val cores=Runtime.getRuntime().availableProcessors().coerceIn(1,8)
-        val threads=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,(1..cores).map { getString(R.string.thread_count,it) }); setSelection((cores.coerceAtMost(4)-1).coerceAtLeast(0)); isEnabled=s.stats.loadedModel==null }
+        val threads=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,(1..cores).map { getString(R.string.thread_count,it) }); setSelection((cores.coerceAtMost(LoadParams().threads)-1).coerceAtLeast(0)); isEnabled=s.stats.loadedModel==null }
         body.addView(TextView(this).apply{text=getString(R.string.thread_control);setTextColor(mint)}); body.addView(threads)
         action(getString(R.string.load_model),getString(R.string.load_model_desc)){ val f=models.getOrNull(modelChoice.selectedItemPosition); if(f==null) toast(getString(R.string.no_model)) else AgentController.load(this,f.absolutePath,LoadParams(512+contextSeek.progress,128,64,threads.selectedItemPosition+1)) }
         action(getString(R.string.refresh_ram),getString(R.string.refresh_ram)){ showLlama() }

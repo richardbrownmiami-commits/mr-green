@@ -6,6 +6,11 @@ import org.junit.Test
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 @org.robolectric.annotation.Config(sdk=[30], application=android.app.Application::class)
 class ScreenReadPolicyTest {
+    @Test fun displayScreenshotSuccessIsNotSecureWindowProofOnAndroidEleven() {
+        assertFalse(ScreenReadPolicy.supportsSecureWindowCapture(30))
+        assertFalse(ScreenReadPolicy.supportsSecureWindowCapture(33))
+        assertTrue(ScreenReadPolicy.supportsSecureWindowCapture(34))
+    }
     @Test fun missingOrUnknownActiveWindowFailsClosed() {
         assertNotNull(ScreenReadPolicy.denial(null, emptySet(), true, true, false))
         assertNotNull(ScreenReadPolicy.denial("pkg", emptySet(), false, true, false))

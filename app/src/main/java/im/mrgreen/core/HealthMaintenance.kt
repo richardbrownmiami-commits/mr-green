@@ -9,6 +9,18 @@ import im.mrgreen.GreenApp
 import kotlinx.coroutines.*
 import java.io.File
 
+/** Bounded cleanup that retains the oldest fact in every exact-duplicate group. */
+internal object FactMaintenance {
+    val PRUNE_DUPLICATES_SQL = """
+        DELETE FROM facts WHERE id IN (
+            SELECT id FROM facts WHERE id NOT IN (
+                SELECT MIN(id) FROM facts
+                GROUP BY key,value,tags,importance,source,last_used
+            ) LIMIT 10
+        )
+    """.trimIndent()
+}
+
 /** No AI in event processing; background maintenance yields between bounded database tasks. */
 class HealthMaintenance(private val app: GreenApp) {
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
@@ -49,7 +61,7 @@ class HealthMaintenance(private val app: GreenApp) {
             File(app.filesDir,"learning-snapshots").listFiles()?.sortedByDescending { it.lastModified() }?.drop(7)?.forEach { it.delete() }
         }
         delay(1); currentCoroutineContext().ensureActive()
-        app.store.writableDatabase.execSQL("DELETE FROM facts WHERE id IN (SELECT id FROM facts WHERE id NOT IN (SELECT MIN(id) FROM facts GROUP BY key,value,tags,importance,source,last_used) LIMIT 10)")
+        app.store.writableDatabase.execSQL(FactMaintenance.PRUNE_DUPLICATES_SQL)
         delay(1); currentCoroutineContext().ensureActive()
         app.store.writableDatabase.execSQL("DELETE FROM logs WHERE timestamp < ?",arrayOf(System.currentTimeMillis()-14L*86400000))
         delay(1); currentCoroutineContext().ensureActive()

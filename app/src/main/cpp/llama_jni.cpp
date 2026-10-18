@@ -321,8 +321,10 @@ Java_im_mrgreen_engine_LlamaEngine_nativeLoad(JNIEnv *env, jobject, jstring path
 
 extern "C" JNIEXPORT void JNICALL
 Java_im_mrgreen_engine_LlamaEngine_nativeUnload(JNIEnv *, jobject) {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    // Generation holds g_mutex while decoding. Signal it before waiting for that
+    // lock, otherwise an unload request can block for the entire generation timeout.
     g_abort = true;
+    std::lock_guard<std::mutex> lock(g_mutex);
     clear_model();
 }
 

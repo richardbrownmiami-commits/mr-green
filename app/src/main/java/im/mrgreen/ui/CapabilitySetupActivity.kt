@@ -27,10 +27,13 @@ class CapabilitySetupActivity : AppCompatActivity() {
         }
         fun permission(p:String) = ContextCompat.checkSelfPermission(this,p)==PackageManager.PERMISSION_GRANTED
         val enabled=Settings.Secure.getString(contentResolver,"enabled_accessibility_services").orEmpty()
-        row("Screen assistant",enabled.contains("im.mrgreen.screen.ScreenAssistantService"),"Explicit bubble taps only; password/protected/blocklisted screens are denied.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        row("App recipes",enabled.contains("im.mrgreen.recipes.RecipeAccessibilityService"),"Optional automation. Exact messages need review before sending.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        val accessibilityOn=Settings.Secure.getInt(contentResolver,Settings.Secure.ACCESSIBILITY_ENABLED,0)==1
+        if(im.mrgreen.screen.ScreenReadPolicy.supportsSecureWindowCapture(android.os.Build.VERSION.SDK_INT))
+            row("Screen assistant",accessibilityOn && CapabilityAccess.containsComponent(enabled,android.content.ComponentName(this,im.mrgreen.screen.ScreenAssistantService::class.java)),"Explicit bubble taps only; password/protected/blocklisted screens are denied.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        else column.addView(TextView(this).apply { text="Screen assistant unavailable: Android 11 cannot verify protected-window capture safely. No screen access is needed. Other capabilities remain available."; setPadding(0,18,0,0) })
+        row("App recipes",accessibilityOn && CapabilityAccess.containsComponent(enabled,android.content.ComponentName(this,im.mrgreen.recipes.RecipeAccessibilityService::class.java)),"Optional automation. Exact messages need review before sending.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         val listeners=Settings.Secure.getString(contentResolver,"enabled_notification_listeners").orEmpty()
-        row("Notification access",listeners.contains(packageName),"Read selected notification events locally; text retention is opt-in.") { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+        row("Notification access",CapabilityAccess.containsComponent(listeners,android.content.ComponentName(this,im.mrgreen.events.GreenNotificationListener::class.java)),"Read selected notification events locally; text retention is opt-in.") { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         row("Call log",permission(Manifest.permission.READ_CALL_LOG),"Optional missed-call events; never sent to cloud.") { requestPermissions(arrayOf(Manifest.permission.READ_CALL_LOG),91) }
         row("Microphone",permission(Manifest.permission.RECORD_AUDIO),"Voice input uses the installed Android recognizer. Install its offline language pack first.") { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),92) }
         row("Flashlight camera permission",permission(Manifest.permission.CAMERA),"Only needed for the torch action; no camera images are collected.") { requestPermissions(arrayOf(Manifest.permission.CAMERA),93) }

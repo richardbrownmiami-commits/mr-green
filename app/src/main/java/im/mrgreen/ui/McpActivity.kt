@@ -43,11 +43,11 @@ class McpActivity : AppCompatActivity() {
         button("Review remote tool call") {
             val name=server.text.toString().trim(); val t=tool.text.toString().trim(); val raw=args.text.toString()
             val parsed=try { JSONObject(raw) } catch (_:Exception) { output.text="Arguments must be a JSON object."; return@button }
-            android.app.AlertDialog.Builder(this).setTitle("Authorize this exact remote call").setMessage("Server: $name\nDestination: ${runtime.approvedMcpEndpoint(name) ?: "not approved"}\nTool: $t\nArguments:\n${parsed.toString(2)}\n\nConfirm these are manually typed PUBLIC data and authorize this action.")
+            val destination=runtime.approvedMcpEndpoint(name) ?: run { output.text="Approve this server first."; return@button }
+            val reviewedArgs=parsed.toString()
+            android.app.AlertDialog.Builder(this).setTitle("Authorize this exact remote call").setMessage("Server: $name\nDestination: $destination\nTool: $t\nArguments:\n${parsed.toString(2)}\n\nConfirm these are manually typed PUBLIC data and authorize this action.")
                 .setNegativeButton("Cancel",null).setPositiveButton("Authorize once") { _,_-> lifecycleScope.launch {
-                    runtime.mcpArgsReviewedPublic=true; runtime.mcpArgsOrigin="user-typed-public"
-                    try { output.text=runtime.callMcp(name,t,parsed,true) } catch(e:Exception) { output.text=e.message }
-                    finally { runtime.mcpArgsReviewedPublic=false; runtime.mcpArgsOrigin="" }
+                    try { output.text=runtime.callMcp(name,t,reviewedArgs,destination,true,true) } catch(e:Exception) { output.text=e.message }
                 } }.show()
         }
         root.addView(output); setContentView(ScrollView(this).apply { addView(root) })

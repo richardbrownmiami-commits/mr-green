@@ -1,7 +1,6 @@
 package im.mrgreen.core
 
 import android.content.Context
-import android.os.Environment
 import android.util.Log
 import im.mrgreen.data.GreenStore
 import java.io.File
@@ -16,8 +15,8 @@ class GreenLog(private val context: Context, private val store: GreenStore) {
         catch (_: Exception) { Log.e("MrGreen", "Log database unavailable") }
         if(code!=null && level in setOf("WARN","ERROR")) try { onIncident?.invoke(component.take(80),code.name,"A registered component reported a bounded failure; review permissions and private diagnostics.") } catch(_:Exception) {}
         try {
-            val shared = android.os.Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()
-            val dir = if (shared) File(Environment.getExternalStorageDirectory(), "Red/logs") else File(context.filesDir, "logs")
+            // A broad storage grant is not consent to publish diagnostics to shared storage.
+            val dir = File(context.filesDir, "logs")
             if (!dir.exists() && !dir.mkdirs()) return
             val file = File(dir, "runtime.log")
             if (file.length() >= 1024 * 1024) {

@@ -48,9 +48,10 @@ class RoadmapActivity : AppCompatActivity() {
                     output.text=steps.toString(2)
                     android.app.AlertDialog.Builder(this@RoadmapActivity).setTitle("Review action plan").setMessage(steps.toString(2))
                         .setNegativeButton("Reject",null).setPositiveButton("Run this plan") { _,_-> lifecycleScope.launch {
-                            val result=withContext(Dispatchers.IO) { app.roadmap.actions.executePlan(steps) }
-                            output.text=result
-                            withContext(Dispatchers.IO) { app.roadmap.learning.recordEpisode(text.take(4000),steps,result.take(4000),!result.startsWith("Stopped:")) }
+                            val result=withContext(Dispatchers.IO) { app.roadmap.actions.executePlanResult(steps) }
+                            output.text=result.message
+                            if (result.verified || result.outcome == im.mrgreen.actions.PlanOutcome.FAILED)
+                                withContext(Dispatchers.IO) { app.roadmap.learning.recordEpisode(text.take(4000),steps,result.message.take(4000),result.verified) }
                         } }.show()
                 } catch (_:Exception) { output.text="No valid plan was produced. Nothing was executed. Load a local model or use deterministic chat actions." }
             }

@@ -2,7 +2,7 @@
 
 An offline-first Android assistant for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit ARMv7**. This repository now contains one integrated app spanning the root [roadmap](plan.md), including the previously missing phase modules. Existing gateway, GGUF chat, Rive replies and plugin features are retained. SkillBot is not part of this repository and was not changed.
 
-**Version: 0.10.0-integrated-preview.** This is implementation code for phone testing, not a declaration that all roadmap acceptance gates passed. No Redmi installation, inference benchmark, MIUI longevity or third-party-app automation result is claimed. Read the [implementation status](docs/implementation-status.md), [test report](docs/test-report.md) and [phone guide](docs/user-guide.md).
+**Version: 0.10.1-audited-preview.** Repository-wide audit fixes are summarized in the [test report](docs/test-report.md). This is still phone-testing code, not a declaration that every roadmap gate passed. No Redmi installation, phone benchmark, MIUI longevity or third-party-app automation result is claimed. **Screen reading is unavailable on Android 11:** display-screenshot success cannot safely verify the accessibility window. The app fails closed instead of bypassing privacy protection. Read the [implementation status](docs/implementation-status.md) and [phone guide](docs/user-guide.md).
 
 ## What is integrated
 
@@ -13,7 +13,7 @@ Open **Overview → All capabilities · Phases 3–10** in the same `im.mrgreen`
 | 0–2: foundation and gateway | CPU-only llama.cpp/JNI, bundled SQLite/FTS5, chat, model picker, foreground service, diagnostics, optional encrypted-key Groq gateway, redaction and local fallback |
 | 3: actions | Rules-first Understanding Library, typed tool registry, sequential compound plans, time/date/date-offset/math, alarm/timer setup, file-and-DB notes, app launching, battery/settings and permission-gated flashlight |
 | 4: events and media | Opt-in notification/call/media observation, private event history, generic proactive alerts, quiet hours/allowlist/rate controls, MediaStore/MX Player/YouTube handoff, audio-state checks, optional reboot restoration |
-| 5: screen assistant | Explicit accessibility setup, one-shot node snapshots and screenshot preflight, secure/password/blocklist protection, local screen Q&A, draggable edge-snapping bubble, extracted-item confirmation and highlights |
+| 5: screen assistant | Fails closed on API 30–33; API 34+ window-targeted capture, transition checks, password/blocklist policy and local Q&A code remain, but are not device-verified |
 | 6: planning, learning and Doctor | Local JSON plan review, approved routine reuse, Learning inbox, typed data-only repair proposals, expected-incident/golden replay, explicit approval, undo, snapshots and staged database restore, metadata-only incident reports, idle maintenance |
 | 7: plugins | Existing bounded flows, QuickJS sandbox, signed `.redpack` validation, review/permissions/200 MiB cap, rollback and safe mode; approved packs can call registered core actions |
 | 8: knowledge | Bounded web search/fetch and recipe cache, TXT/PDF/EPUB import with local citations, FTS retrieval, explicit-public-argument HTTPS MCP JSON-RPC review |
@@ -40,6 +40,8 @@ python3 scripts/check-apk-abi.py app/build/outputs/apk/debug/app-debug.apk app/b
 python3 scripts/check-inference-build.py app/.cxx/Debug/*/armeabi-v7a/compile_commands.json app/build/outputs/apk/debug/app-debug.apk
 python3 scripts/audit-phase7.py --integrated app/build/outputs/apk/debug/app-debug.apk
 python3 scripts/check-phase2-storage.py
+python3 scripts/check-integrated-storage.py
+python3 -m pytest -q tests/extensions
 bash scripts/test-quickjs-host.sh
 ```
 
@@ -58,6 +60,6 @@ The installable debug output uses the builder's development key. Gradle's releas
 
 ## Important limits
 
-Clock handoffs, playback, third-party layouts and native patch loading must be verified on the target phone. Screen questions remain local-only; screenshot-to-cloud vision is not implemented. Private-source data is not sent to MCP. The web client and app recipes are bounded implementations, not universal website/app automation. Read the detailed limits in the implementation status before treating a roadmap gate as passed.
+Clock handoffs, playback, third-party layouts and native patch loading must be verified on the target phone. **The screen assistant cannot read screens on the Redmi's Android 11**; API 34+ capture code also still needs device validation. Screenshot-to-cloud vision and generated playlists are not implemented. Private-source data is not sent to MCP. Web/MCP connections validate the actual public DNS address list used for HTTPS, retain TLS verification and block redirects/proxies. The web client and app recipes are bounded implementations, not universal automation. Read the detailed limits before treating a roadmap gate as passed.
 
 See [pack format](docs/phase7-pack-format.md), [flow syntax](docs/phase7-flow-format.md), [QuickJS limits](docs/phase7-quickjs.md), the [optional companion sample](samples/companion/README.md), [third-party dependencies](docs/third-party.md), and [VERIFY checklist](docs/verify-status.md). The original editable icon remains [the violet sentinel](assets/mr-green-violet-sentinel.svg).

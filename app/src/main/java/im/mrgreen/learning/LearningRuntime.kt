@@ -3,6 +3,7 @@ package im.mrgreen.learning
 import android.content.ContentValues
 import android.content.Context
 import im.mrgreen.data.GreenStore
+import im.mrgreen.core.FactMaintenance
 import io.requery.android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -203,6 +204,6 @@ class LearningRuntime(context: Context, private val store: GreenStore) {
     }
     fun incidentCards():List<String> = db.rawQuery("SELECT card_json,count FROM incidents ORDER BY last_seen DESC LIMIT 20",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0)+"\nOccurrences: "+c.getInt(1)) } }
     fun createSnapshot(label:String="daily"):String { val dir=File(app.filesDir,"learning-snapshots").apply{mkdirs()}; val target=File(dir,"${System.currentTimeMillis()}-${label.replace(Regex("[^a-zA-Z0-9_-]"),"").take(24)}.db"); db.execSQL("VACUUM INTO ?", arrayOf(target.absolutePath)); target.setReadable(false,false); target.setReadable(true,true); return target.absolutePath }
-    fun maintain():String { val d=db; d.execSQL("DELETE FROM facts WHERE id NOT IN (SELECT MIN(id) FROM facts GROUP BY key,value,tags,importance,source,last_used)"); d.execSQL("ANALYZE"); return "Maintenance completed: exact duplicate facts removed and database analyzed." }
+    fun maintain():String { val d=db; d.execSQL(FactMaintenance.PRUNE_DUPLICATES_SQL); d.execSQL("ANALYZE"); return "Maintenance completed: up to 10 exact duplicate facts removed and database analyzed." }
     private fun sha(s:String)=MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString(""){"%02x".format(it)}
 }

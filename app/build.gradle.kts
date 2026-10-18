@@ -12,8 +12,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 9
-        versionName = "0.10.0-integrated-preview"
+        versionCode = 10
+        versionName = "0.10.1-audited-preview"
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {
@@ -48,6 +48,7 @@ android {
 
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.10.1")

@@ -22,13 +22,18 @@ class ScreenAssistantService : AccessibilityService() {
     private var bubble: View? = null
     private var params: WindowManager.LayoutParams? = null
     private val busy = AtomicBoolean(false)
+    private var windowEpoch = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         window = getSystemService(WINDOW_SERVICE) as WindowManager
         addBubble()
     }
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) { /* Never inspect or retain background events. */ }
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Track transitions only; never inspect event text, source nodes or package contents.
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event?.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) windowEpoch++
+    }
     override fun onInterrupt() { }
     override fun onDestroy() { removeBubble(); super.onDestroy() }
 
@@ -61,24 +66,33 @@ class ScreenAssistantService : AccessibilityService() {
 
     private fun captureBeforePanel() {
         if (!busy.compareAndSet(false,true)) return
-        if (Build.VERSION.SDK_INT < 30) { openDenied("Can't verify whether this window is secure on this Android version. Nothing was read."); return }
+        if (Build.VERSION.SDK_INT < ScreenReadPolicy.MIN_SECURE_CAPTURE_SDK) {
+            openDenied("Screen reading is unavailable on Android 11: display screenshots cannot verify this window's privacy. Nothing was read."); return
+        }
+        val initial = try { rootInActiveWindow } catch (_: Exception) { null }
+        val expectedWindow = initial?.windowId ?: -1
+        val expectedPackage = initial?.packageName?.toString()
+        runCatching { initial?.recycle() }
+        if (expectedWindow < 0 || expectedPackage.isNullOrBlank()) { openDenied("No safe active window is available. Nothing was read."); return }
+        val expectedEpoch = windowEpoch
         try {
-            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+            takeScreenshotOfWindow(expectedWindow, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                    // A successful system capture establishes this window was not FLAG_SECURE at that instant.
-                    // Pixels are immediately discarded; only the accessibility tree is used.
+                    // API 34 binds capture and secure-window rejection to this window ID.
                     try { screenshot.hardwareBuffer.close() } catch (_: Exception) { }
-                    captureNodes(secureWindowKnown = true)
+                    if (windowEpoch != expectedEpoch) openDenied("The active window changed. Nothing was read.")
+                    else captureNodes(expectedWindow, expectedPackage, expectedEpoch)
                 }
                 override fun onFailure(errorCode: Int) { openDenied("This screen may be protected or unavailable. Nothing was read.") }
             })
         } catch (_: Exception) { openDenied("Can't verify whether this window is secure. Nothing was read.") }
     }
 
-    private fun captureNodes(secureWindowKnown: Boolean) {
+    private fun captureNodes(expectedWindow: Int, expectedPackage: String, expectedEpoch: Long) {
         val before = try { rootInActiveWindow } catch (_: Exception) { null }
         val pkg = before?.packageName?.toString()
         val sensitive = before?.let(::hasPassword) ?: false
+        val secureWindowKnown = before != null && before.windowId == expectedWindow && pkg == expectedPackage && windowEpoch == expectedEpoch
         val denied = ScreenReadPolicy.denial(pkg, blockedPackages(), before != null, secureWindowKnown = secureWindowKnown, containsPasswordField = sensitive)
         val snapshot = if (denied != null) ScreenSnapshot(pkg.orEmpty(), System.currentTimeMillis(), emptyList(), denied) else try {
             if (containsPasswordOrSecureEditable(before!!)) throw SensitiveScreenException()
@@ -86,7 +100,7 @@ class ScreenAssistantService : AccessibilityService() {
             val after=try { rootInActiveWindow } catch (_:Exception) { null }
             val afterPkg=after?.packageName?.toString()
             val sameWindow=after!=null && after.windowId==before.windowId
-            val unsafe=after==null || afterPkg!=pkg || !sameWindow || (after!=null && (hasPassword(after) || containsPasswordOrSecureEditable(after)))
+            val unsafe=after==null || afterPkg!=pkg || !sameWindow || windowEpoch!=expectedEpoch || (after!=null && (hasPassword(after) || containsPasswordOrSecureEditable(after)))
             runCatching { after?.recycle() }
             if(unsafe) throw SensitiveScreenException()
             ScreenSnapshot(pkg!!, System.currentTimeMillis(), items.take(120))
