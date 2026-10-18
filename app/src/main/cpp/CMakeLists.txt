@@ -37,3 +37,15 @@ target_compile_features(mrgreen PRIVATE cxx_std_17)
 target_include_directories(mrgreen PRIVATE "${LLAMA_VENDOR_DIR}/include")
 target_link_libraries(mrgreen PRIVATE llama log android)
 # Generic ARMv7 NEON only; no host-native tuning, dotprod or fp16-arith.
+
+set(QUICKJS_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/quickjs")
+if(NOT EXISTS "${QUICKJS_DIR}/quickjs.c")
+    message(FATAL_ERROR "Pinned QuickJS missing. Run scripts/fetch-quickjs.sh")
+endif()
+add_library(mrgreen_quickjs SHARED quickjs_jni.cpp quickjs_runtime.cpp
+    "${QUICKJS_DIR}/quickjs.c" "${QUICKJS_DIR}/libregexp.c"
+    "${QUICKJS_DIR}/libunicode.c" "${QUICKJS_DIR}/cutils.c" "${QUICKJS_DIR}/libbf.c")
+target_compile_features(mrgreen_quickjs PRIVATE cxx_std_17)
+target_compile_definitions(mrgreen_quickjs PRIVATE CONFIG_BIGNUM CONFIG_VERSION=\"2024-01-13\")
+target_include_directories(mrgreen_quickjs PRIVATE "${QUICKJS_DIR}")
+target_link_libraries(mrgreen_quickjs PRIVATE log android)

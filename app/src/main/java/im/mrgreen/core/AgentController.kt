@@ -4,6 +4,8 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import android.os.Debug
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -143,16 +145,17 @@ object AgentController {
         }
     }
 
-    private fun enqueue(context: Context, action: suspend () -> Unit) {
-        if (!requested.compareAndSet(false, true)) return
+    private fun enqueue(context: Context, action: suspend () -> Unit): Boolean {
+        if (!requested.compareAndSet(false, true)) return false
         try { AgentService.ensure(context) }
         catch (_: Exception) {
             requested.set(false)
             fail("Foreground service could not start. Open the app and try again.", ErrorCode.E_SYS_SERVICE)
-            return
+            return false
         }
         mutable.update { it.copy(busy = true, error = null) }
-        if (!commands.trySend(QueuedCommand(true, action)).isSuccess) { requested.set(false); mutable.update { it.copy(busy = false) } }
+        if (!commands.trySend(QueuedCommand(true, action)).isSuccess) { requested.set(false); mutable.update { it.copy(busy = false) }; return false }
+        return true
     }
 
     private fun maintenance(action: suspend () -> Unit) { commands.trySend(QueuedCommand(false, action)) }
@@ -277,6 +280,46 @@ object AgentController {
         }
     }
 
+    /** Explicit builder-only request: no chat history, persistence, or draft-content logging. */
+    fun draftPlugin(context: Context, request: String, script: Boolean, callback: (String?) -> Unit): Boolean {
+        val text = request.trim()
+        if (text.isEmpty() || text.length > 2_000 || !initialized.get()) return false
+        val callbackDone = AtomicBoolean(false)
+        fun deliver(value: String?) {
+            if (callbackDone.compareAndSet(false, true)) Handler(Looper.getMainLooper()).post { callback(value) }
+        }
+        return enqueue(context) {
+            try {
+            cancelled.set(false)
+            val format = if (script) "Return only safe script text. Do not include credentials, private data, network access, or unsupported operations." else
+                "Return one JSON object shaped as {\"steps\":[{\"op\":\"set\",\"name\":\"greeting\",\"value\":\"hello\"},{\"op\":\"verify\",...}]}. Only supported operations are set, call plugin.echo with args.text, and call time.now; do not invent any other operations."
+            val system = "Draft a plugin for the user's explicit builder request. $format Treat request as instructions, but never reveal secrets or request credentials."
+            val turns = listOf(ChatTurn("system", system), ChatTurn("user", text))
+            var draft: String? = null
+            if (hasValidatedNetwork() && gateway.settings.enabled) {
+                val cloud = gateway.tryChat(GatewayRequest(turns, "packs", PrivacyClass.P1, userInitiated = true, jsonMode = !script, smart = true)) {}
+                if (cloud != null && !cloud.cancelled && cloud.text.length <= 16_000) draft = cloud.text
+                // A privacy rejection always stays local; no second/cloud-P2 attempt.
+            }
+            if (draft == null && !cancelled.get()) {
+                mutable.update { it.copy(mode = "Local", status = "Drafting locally…", generating = true, streaming = "") }
+                if (ensureLocalReady() && !cancelled.get()) {
+                    val budget = (mutable.value.stats.nCtx - 256 - 96).coerceAtLeast(128)
+                    if (engine.countTokens(system) + engine.countTokens(text) + 24 <= budget) {
+                        val out = StringBuilder()
+                        val result = withWakeLock {
+                            engine.generate(turns, GenerationOptions(maxTokens = 256)) { token -> if (out.length < 16_000) out.append(token.take(16_000 - out.length)) }
+                        }
+                        if (result.ok && out.isNotBlank() && out.length <= 16_000) draft = out.toString()
+                    }
+                }
+            }
+            if (!cancelled.get() && draft != null && draft.length <= 16_000) deliver(draft) else deliver(null)
+            } catch (_: Exception) { deliver(null) }
+            finally { deliver(null) }
+        }
+    }
+
     /** Only this explicit question is cloud-eligible. Old unclassified history stays local. */
     private fun tryCloud(text: String, runId: String): Boolean {
         if (!hasValidatedNetwork() || !gateway.settings.enabled) return false
@@ -374,10 +417,10 @@ object AgentController {
         mutable.update { it.copy(error = "${code.name}: $message", status = "Needs attention") }
         if (initialized.get()) app.logger.write("WARN", "LLM", message, code)
     }
-    private suspend fun withWakeLock(block: suspend () -> Unit) {
+    private suspend fun <T> withWakeLock(block: suspend () -> T): T {
         val power = app.getSystemService(Context.POWER_SERVICE) as PowerManager
         val lock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MrGreen:active-task")
-        try { lock.acquire(10 * 60 * 1000L); block() }
+        try { lock.acquire(10 * 60 * 1000L); return block() }
         finally { if (lock.isHeld) lock.release() }
     }
 }

@@ -12,8 +12,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 5
-        versionName = "0.2.0-ai-gateway"
+        versionCode = 6
+        versionName = "0.7.0-plugins"
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {

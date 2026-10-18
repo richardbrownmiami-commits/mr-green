@@ -1,0 +1,7 @@
+Command: ./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug
+> Task :app:lintDebug
+
+BUILD SUCCESSFUL in 36s
+104 actionable tasks: 27 executed, 77 up-to-date
+Lint: 0 errors, 43 warnings.
+A25/A26 Redmi device acceptance: PENDING.

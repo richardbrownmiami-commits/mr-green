@@ -8,10 +8,13 @@ import im.mrgreen.data.GreenStore
 class GreenApp : Application() {
     val store by lazy { GreenStore(this) }
     val logger by lazy { GreenLog(this, store) }
+    val plugins by lazy { im.mrgreen.plugins.PluginSystem(this) }
     override fun onCreate() {
         super.onCreate()
         androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES)
         logger.installCrashHandler()
+        // Persisted in-flight marker also detects a native plugin crash on next start.
+        try { plugins.recover() } catch (_: Exception) { plugins.manager.enterSafeMode() }
         // Database initialization stays off the startup/UI thread in AgentController.
         AgentController.initialize(this)
     }

@@ -179,6 +179,7 @@ class MainActivity : AppCompatActivity() {
         start(getString(R.string.panel_title),getString(R.string.panel_subtitle))
         card(getString(R.string.runtime_title),"${AgentController.state.value.status}\n${getString(if (application is GreenApp && AgentController.gateway.settings.enabled) R.string.cloud_overview_enabled else R.string.cloud_overview_disabled)}")
         action(getString(R.string.cloud_open_gateway),getString(R.string.cloud_open_gateway)) { startActivity(Intent(this,CloudActivity::class.java)) }
+        action("Plugins · Phase 7", "Review, build, run or roll back a local pack") { startActivity(Intent(this, PluginsActivity::class.java)) }
         card(getString(R.string.permissions_title),getString(R.string.permission_panel_note))
         val preferences = getSharedPreferences("ui", MODE_PRIVATE)
         body.addView(androidx.appcompat.widget.SwitchCompat(this).apply {
@@ -294,7 +295,7 @@ class MainActivity : AppCompatActivity() {
         })
         refresh("")
     }
-    private fun showFiles(){start(getString(R.string.files_title),getString(R.string.files_subtitle)); val files=File(filesDir,"models").listFiles()?.filter{it.isFile}?.joinToString("\n"){ "${it.name} · ${it.length()/1048576} MB" }.takeUnless{it.isNullOrBlank()}?:getString(R.string.no_models); card(getString(R.string.models_title),files)}
+    private fun showFiles(){start(getString(R.string.files_title),getString(R.string.files_subtitle)); val files=File(filesDir,"models").listFiles()?.filter{it.isFile}?.joinToString("\n"){ "${it.name} · ${it.length()/1048576} MB" }.takeUnless{it.isNullOrBlank()}?:getString(R.string.no_models); card(getString(R.string.models_title),files); action("Plugins · Phase 7", "Pack storage, import, approval and rollback") { startActivity(Intent(this, PluginsActivity::class.java)) } }
     private fun card(title:String,text:String){val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(14),dp(16),dp(14));background=rounded(surface,16)};box.addView(TextView(this).apply{this.text=title;textSize=16f;setTextColor(mint);typeface=android.graphics.Typeface.DEFAULT_BOLD});box.addView(TextView(this).apply{this.text=text;textSize=14f;setTextColor(0xFFB8ABC9.toInt());setPadding(0,dp(7),0,0)});body.addView(box,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(12)})}
     private fun action(label:String,desc:String,run:()->Unit){body.addView(MaterialButton(this).apply{text=label;contentDescription=desc;minHeight=dp(52);setOnClickListener{run()}},LinearLayout.LayoutParams(-1,dp(58)))}
     private fun toast(text:String){Toast.makeText(this,text,Toast.LENGTH_LONG).show()}

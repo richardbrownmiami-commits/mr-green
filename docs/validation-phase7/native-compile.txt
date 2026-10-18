@@ -1,0 +1,11 @@
+PASS: 83 native compile commands use ARMv7 Android and effective -O3
+PASS: ELF32 ARM lib/armeabi-v7a/libc++_shared.so
+PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen.so
+PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen_quickjs.so
+PASS: ELF32 ARM lib/armeabi-v7a/libsqlite3x.so
+Packaging/compile checks passed; Android 11 phone execution remains unverified.
+PASS: release ELF32 ARM lib/armeabi-v7a/libc++_shared.so
+PASS: release ELF32 ARM lib/armeabi-v7a/libmrgreen.so
+PASS: release ELF32 ARM lib/armeabi-v7a/libmrgreen_quickjs.so
+PASS: release ELF32 ARM lib/armeabi-v7a/libsqlite3x.so
+Release preserves baseline RelWithDebInfo/-O2; debug compile audit above uses -O3.

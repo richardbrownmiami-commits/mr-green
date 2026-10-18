@@ -1,0 +1,1 @@
+{"id":"example.flow","name":"Layer 1 local example","version":"1.0.0","api_min":1,"api_max":1,"layers":[1],"permissions":["plugin.output"],"tools":["plugin.echo"],"triggers":[]}

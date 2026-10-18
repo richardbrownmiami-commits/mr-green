@@ -1,0 +1,1 @@
+{"steps":[{"op":"set","name":"message","value":"Hello from layer 1, version 1"},{"op":"verify","value":"$message","equals":"Hello from layer 1, version 1"},{"op":"call","tool":"plugin.echo","args":{"text":"$message"}}]}

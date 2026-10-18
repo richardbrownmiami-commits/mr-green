@@ -16,3 +16,10 @@ vendor/llama.cpp/
 *.so
 *.log
 captures/
+
+vendor/quickjs/
+__pycache__/
+*.pyc
+.quickjs-host-build/
+*.redpack
+*.pem

@@ -1,13 +1,21 @@
 # Mr Green
 
-An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit ARMv7). This is the **Phase 1 skeleton plus Phase 2 AI Gateway**, not the finished multi-phase product. SkillBot is not part of this repository.
+An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit ARMv7). This is the **Phase 1 skeleton, Phase 2 AI Gateway and scoped Phase 7 plugins**, not the finished multi-phase product. SkillBot is not part of this repository.
 
 The owner authorized building before Phase 0 device verification and will check the app on the phone. **Neither Phase 0 nor the Phase 1 offline-chat/frame-rate gate is claimed as passed.** See [Phase 1 status](docs/phase1-status.md), [build results](docs/test-report.md) and the supplied [plan](docs/plan.md).
+
+## 0.7.0 Plugins (Phase 7 directly after Phase 2)
+
+The owner requested skipping directly from Phase 2 to Phase 7. This change starts at `f1b141bfe12d87c9a4d1f612f6265817479c3342`; unfinished Phase 3 work is not included. **Phases 3–6 and 8+ are not implemented.** The same `im.mrgreen` app adds a bounded declarative flow runtime, native QuickJS sandbox, signed `.redpack` validation, mocked tests, explicit permissions/size approval, local/optional AI draft builder, 200 MiB library cap, previous-version rollback and failure safe mode. Open **Overview → Plugins · Phase 7** or **Library → Plugins · Phase 7**.
+
+Only safe plugin-local output, namespaced memory and clock APIs are exposed. Android action tools are not connected. Runtime HTTP/AI calls fail closed; the separate user-requested builder uses the existing Phase 2 gateway and local fallback. Active packs/security state are app-private rather than shared SD files; SD/file-picker imports are supported. No automatic GitHub downloader is claimed. See [pack format and signing](docs/phase7-pack-format.md), [flow syntax](docs/phase7-flow-format.md), [QuickJS limits](docs/phase7-quickjs.md) and [Phase 7 checks and phone checklist](docs/phase7-status.md).
+
+**A25/A26 remain pending on the Redmi.** Host tests, native loop/OOM checks and an ARMv7 APK do not establish device acceptance. This sandbox has a different development signing key; if Android rejects an update, **do not uninstall or clear app data**. Use the original signing key for a data-preserving update.
 
 ## 0.2.0 AI Gateway (Phase 2)
 The owner asked to skip the optional 55 fps visual measurement and proceed with **Phase 2 only**. It remains unmeasured, not passed. The same `im.mrgreen` app now adds Groq-first text chat with local fallback, encrypted user-pasted credentials, runtime model discovery, redaction and P2 blocking, quota/backoff handling, metadata-only cloud audit, Cloud/Local badge and connectivity-loss pre-warm. Cloud starts **off**; offline inference remains available without an account or key. No SkillBot code is involved.
 
-Open **Overview → AI Gateway / Cloud**, paste your own key there, enable cloud and discover models, then choose fast and smart models. Do not put keys in source, Gradle properties or issue reports. Only the current explicit chat question is cloud-eligible; previous unclassified chat history remains local. Sensitive provenance is always local and each personal-data category has a Local only switch. Later-phase actions, screen capture, Doctor and plugins are not implemented by this increment.
+Open **Overview → AI Gateway / Cloud**, paste your own key there, enable cloud and discover models, then choose fast and smart models. Do not put keys in source, Gradle properties or issue reports. Only explicit requests are cloud-eligible; previous unclassified chat history remains local. Sensitive provenance is always local and each personal-data category has a Local only switch. Later-phase actions, screen capture and Doctor are not implemented. Phase 7 adds only the scoped plugins described above.
 
 See [Phase 2 status and phone checklist](docs/phase2-status.md). Build-computer checks are not Redmi evidence: **A22 and A23 remain pending on the actual phone**. Do not uninstall or clear app data to bypass a signing mismatch. A source backup was made before editing; the app database upgrade is additive.
 
@@ -35,7 +43,7 @@ This update fixes zero-token JNI batches, preserves native failure details in di
 - App-private bundled SQLite with FTS5 schema, persisted chat and identity, metadata logs and a last-crash report.
 - User-visible foreground service, active-task wake lock and Stop action.
 
-Action tools, plugin execution, learning/Doctor, voice, overlay, accessibility automation and document RAG remain later phases. Their settings are not presented as completed capabilities. No API key is required for local offline operation.
+Android action tools, learning/Doctor, voice, overlay, accessibility automation and document RAG remain later phases. Their settings are not presented as completed capabilities. No API key is required for local offline operation or local pack building/execution.
 
 ## Build
 
@@ -45,13 +53,14 @@ Use JDK 17 (JDK 21 also works with this Gradle), Android SDK platform 36, build 
 sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
 # Set ANDROID_HOME or add sdk.dir=/absolute/path/to/android-sdk in local.properties.
 bash scripts/fetch-llama.sh
+bash scripts/fetch-quickjs.sh
 ./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest
 python3 scripts/check-apk-abi.py \
   app/build/outputs/apk/debug/app-debug.apk \
   app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
-`fetch-llama.sh` retrieves the exact upstream commit recorded in the Phase 0 host report. Vendor source and GGUF weights are not committed. The native build is CPU-only and packages `armeabi-v7a` only; it never builds an arm64 variant.
+`fetch-llama.sh` retrieves the exact upstream commit recorded in the Phase 0 host report. `fetch-quickjs.sh` verifies the official source archive SHA-256. Vendor source and GGUF weights are not committed. The native build is CPU-only and packages `armeabi-v7a` only; it never builds an arm64 variant. Run `bash scripts/test-quickjs-host.sh` for the standalone native sandbox harness and `python3 scripts/audit-phase7.py APK` for heuristic source/APK privacy checks.
 
 **Installable development APK:** `app/build/outputs/apk/debug/app-debug.apk`. It uses Android's development signing key. The release output is deliberately **unsigned** (`app-release-unsigned.apk`) until the owner provides their release-signing process. Do not treat it as an installable signed release, and do not commit signing keys. Debug signatures can differ between builders. If Android rejects an update because of a signature mismatch, stop and use the original signing key for a data-preserving update. **Do not uninstall or clear app data as a workaround: this erases private chat and imported models.**
 

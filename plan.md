@@ -1,9 +1,12 @@
 # PLAN v2: "Mr Green" — Offline + Online Android AI Agent (fresh build)
 
-**Execution note (18 October 2026):** The owner asked to leave the optional Redmi 9
-55 fps visual measurement unmeasured and proceed with **Phase 2 only**. That
-measurement is skipped, not passed. Phase 2 implementation and build-computer
-checks do not establish A22/A23 acceptance on the Redmi; see `docs/phase2-status.md`.
+**Execution note (18 October 2026):** After the Phase 2 Redmi test, the owner asked
+to skip directly to **Phase 7 only** and review the APK before choosing improvements.
+The baseline is Phase 2 commit `f1b141bfe12d87c9a4d1f612f6265817479c3342`;
+unfinished Phase 3 work is excluded. Phases 3–6 and 8+ are not implemented.
+The earlier optional 55 fps measurement remains skipped, not passed. Host checks
+do not establish Redmi A22/A23 or A25/A26 acceptance; see `docs/phase2-status.md`
+and `docs/phase7-status.md`.
 
 Audience: Manus AI (builder). Read the whole file before writing code.
 Items marked **VERIFY** are things the planner could not confirm. Test them in Phase 0 and report the result before relying on them.

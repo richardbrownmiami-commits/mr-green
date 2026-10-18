@@ -22,7 +22,7 @@ for command in commands:
     if any(any(f in a for f in forbidden) for a in args):
         raise SystemExit(f"FAIL: incompatible architecture flag: {command['file']}")
 print(f"PASS: {len(commands)} native compile commands use ARMv7 Android and effective -O3")
-expected = {f"lib/armeabi-v7a/{name}" for name in ("libmrgreen.so", "libsqlite3x.so", "libc++_shared.so")}
+expected = {f"lib/armeabi-v7a/{name}" for name in ("libmrgreen.so", "libmrgreen_quickjs.so", "libsqlite3x.so", "libc++_shared.so")}
 with zipfile.ZipFile(sys.argv[2]) as apk:
     actual = {n for n in apk.namelist() if n.startswith("lib/") and n.endswith(".so")}
     if actual != expected:
