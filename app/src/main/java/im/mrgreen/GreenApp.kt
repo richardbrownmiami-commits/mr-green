@@ -9,6 +9,7 @@ class GreenApp : Application() {
     val store by lazy { GreenStore(this) }
     val logger by lazy { GreenLog(this, store) }
     val plugins by lazy { im.mrgreen.plugins.PluginSystem(this) }
+    val rive by lazy { im.mrgreen.rive.RiveBrain(java.io.File(filesDir, "rive")) }
     override fun onCreate() {
         super.onCreate()
         androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES)

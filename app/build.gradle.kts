@@ -12,8 +12,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 6
-        versionName = "0.7.0-plugins"
+        versionCode = 7
+        versionName = "0.7.1-rive"
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {
@@ -54,6 +54,9 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("com.rivescript:rivescript-core:0.11.0")
+    // No-op logging prevents the interpreter from logging private trigger/reply text.
+    implementation("org.slf4j:slf4j-nop:1.7.26")
     // Bundle SQLite rather than assuming the MIUI system library has FTS5.
     implementation("com.github.requery:sqlite-android:3.49.0")
     testImplementation("junit:junit:4.13.2")

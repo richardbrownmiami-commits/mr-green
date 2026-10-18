@@ -199,7 +199,21 @@ object AgentController {
                 return@enqueue
             }
             val runId = UUID.randomUUID().toString()
-            if (tryCloud(text, runId)) return@enqueue
+            val ruleRevision = try { app.rive.revision() } catch (_: Exception) { -1L }
+            val ruleReply = try { app.rive.reply(text) } catch (_: Exception) {
+                app.logger.write("WARN", "RIVE", "Rule lookup unavailable; falling back to generation")
+                null
+            }
+            if (ruleReply != null && !cancelled.get()) {
+                app.store.addMessage("user", text)
+                app.store.addMessage("assistant", ruleReply.text)
+                mutable.update { it.copy(mode = "Local", status = if (ruleReply.learned) "Saved local reply · unverified" else "Rive rule reply",
+                    streaming = "", refresh = System.currentTimeMillis()) }
+                return@enqueue
+            }
+            val learnThisTurn = app.getSharedPreferences("rive", Context.MODE_PRIVATE).getBoolean("auto_learn", false)
+            // Learning is explicitly local GGUF only, not cloud output or cloud cache.
+            if (!learnThisTurn && tryCloud(text, runId)) return@enqueue
             if (cancelled.get()) return@enqueue
             mutable.update { it.copy(mode = "Local", streaming = "", generating = false) }
             if (!ensureLocalReady()) {
@@ -272,6 +286,19 @@ object AgentController {
                     if (result.ok) publishStats("Local ready")
                     else if (result.cancelled) publishStats("Generation cancelled")
                     else { publishStats("Local generation stopped"); fail(result.error ?: "Generation stopped", ErrorCode.E_LLM_GENERATE) }
+                    if (learnThisTurn && app.getSharedPreferences("rive", Context.MODE_PRIVATE).getBoolean("auto_learn", false)) {
+                        val complete = im.mrgreen.rive.RiveLearningPolicy.completedLocalAnswer(
+                            result.ok, cancelled.get(), mutable.value.error != null, progress.get())
+                        try {
+                            if (app.rive.learn(text, buffer.toString(), ruleRevision, complete, cancelled.get())) {
+                                mutable.update { it.copy(status = "Local ready · saved unverified Rive reply") }
+                            }
+                        } catch (_: Exception) {
+                            // Never discard a good answer or stop chat because saving a rule failed.
+                            mutable.update { it.copy(status = "Local ready · reply not saved to Rive") }
+                            app.logger.write("WARN", "RIVE", "Reply was not saved; previous working rules remain active")
+                        }
+                    }
                     val elapsedMs = (System.nanoTime() - started) / 1_000_000
                     val detail = if (result.ok) "" else if (result.cancelled) "cancelled" else "; native_error=${result.error ?: "unknown"}"
                     app.logger.write(if(result.ok || result.cancelled) "INFO" else "WARN", "LLM", "Local chat completed=${result.ok}; duration_ms=$elapsedMs; output_chars=${buffer.length}; gen_tok_s=${engine.stats().genTokPerSec}$detail", if (!result.ok && !result.cancelled) ErrorCode.E_LLM_GENERATE else null, planId = runId)

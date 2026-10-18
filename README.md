@@ -4,6 +4,27 @@ An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit A
 
 The owner authorized building before Phase 0 device verification and will check the app on the phone. **Neither Phase 0 nor the Phase 1 offline-chat/frame-rate gate is claimed as passed.** See [Phase 1 status](docs/phase1-status.md), [build results](docs/test-report.md) and the supplied [plan](docs/plan.md).
 
+## 0.7.1 Live Rive rules and local answer learning
+
+Open **Overview → Rive rules & learning** in the same `im.mrgreen` app. Rules are checked before cloud or GGUF generation. Import a `.rive` file or edit the imported text; validation and replacement approval happen before an atomic app-private write and live interpreter swap. A streaming answer is never rewritten. Rejected edits or failed reloads retain the working in-memory rules. Export uses the system document picker; no new storage permission is needed.
+
+**Auto-learning starts off.** Enabling it keeps rule misses on the local GGUF path, even if cloud is enabled. A successful, non-cancelled answer that ends before the token limit can become a literal rule immediately after generation. Repeat questions then use that saved answer without loading the model. Incomplete, failed, cancelled, unsafe-to-serialize or oversized answers are not learned. Changing/reloading/removing rules during generation prevents that turn from adding a stale rule. Imported owner rules always win; the model never overwrites them. Review/delete individual learned replies or clear them all in the rule screen.
+
+These are **unverified saved answers, not model training or verified knowledge**. A model mistake can be repeated; answers can become stale or depend on earlier conversation. Matches ignore case, repeated whitespace and trailing `. ! ?`, but do not generalize to paraphrases. Questions with other punctuation/operators are not learned or matched, avoiding arithmetic/identifier collisions. Disable learning or delete an item when inappropriate. Disabling learning stops new saves, not existing rule replies. Exported learned answers become ordinary imported rules if reimported, so review them first.
+
+For safety, this increment accepts a **literal-only RiveScript subset**, compiled with the pinned Java interpreter: `! version = 2.0`, whole-line `//` comments, one lowercase `+ trigger` containing letters/numbers/spaces and one plain `- reply`. Replies may use `\n` for newlines. No wildcard/regex triggers, executable objects, tags, redirects, topics or tools are accepted. For example:
+
+```text
+! version = 2.0
+
++ hello
+- Hello! How can I help?
+```
+
+The combined imported/learned store is limited to 500 rules and 256 KiB; individual questions to 256 characters and replies to 4096. It lives in private `files/rive/rules.rive`, not the APK. No model, chat database or existing plugin is replaced. Real Redmi model inference and installation still require phone verification; use the original signing key for a data-preserving update.
+
+Host verification for this increment: `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug` succeeded with 101 passing tests, 3 existing skipped tests, and lint reporting 0 errors / 52 warnings. All 28 new Rive engine, learning-policy and UI tests passed. The three production-SQL host checks, 15 native QuickJS checks, APK ABI/security audit and debug signature verification also passed. This is not a phone inference, installation, performance or Android database-migration result.
+
 ## 0.7.0 Plugins (Phase 7 directly after Phase 2)
 
 The owner requested skipping directly from Phase 2 to Phase 7. This change starts at `f1b141bfe12d87c9a4d1f612f6265817479c3342`; unfinished Phase 3 work is not included. **Phases 3–6 and 8+ are not implemented.** The same `im.mrgreen` app adds a bounded declarative flow runtime, native QuickJS sandbox, signed `.redpack` validation, mocked tests, explicit permissions/size approval, local/optional AI draft builder, 200 MiB library cap, previous-version rollback and failure safe mode. Open **Overview → Plugins · Phase 7** or **Library → Plugins · Phase 7**.
@@ -43,7 +64,7 @@ This update fixes zero-token JNI batches, preserves native failure details in di
 - App-private bundled SQLite with FTS5 schema, persisted chat and identity, metadata logs and a last-crash report.
 - User-visible foreground service, active-task wake lock and Stop action.
 
-Android action tools, learning/Doctor, voice, overlay, accessibility automation and document RAG remain later phases. Their settings are not presented as completed capabilities. No API key is required for local offline operation or local pack building/execution.
+Android action tools, broader learning/Doctor, voice, overlay, accessibility automation and document RAG remain later phases. Only the bounded local reply learning above is implemented. No API key is required for local offline operation or local pack building/execution.
 
 ## Build
 

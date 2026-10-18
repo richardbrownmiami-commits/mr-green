@@ -180,6 +180,7 @@ class MainActivity : AppCompatActivity() {
         card(getString(R.string.runtime_title),"${AgentController.state.value.status}\n${getString(if (application is GreenApp && AgentController.gateway.settings.enabled) R.string.cloud_overview_enabled else R.string.cloud_overview_disabled)}")
         action(getString(R.string.cloud_open_gateway),getString(R.string.cloud_open_gateway)) { startActivity(Intent(this,CloudActivity::class.java)) }
         action("Plugins · Phase 7", "Review, build, run or roll back a local pack") { startActivity(Intent(this, PluginsActivity::class.java)) }
+        action("Rive rules & learning", "Import, review and manage safe local Rive rules") { startActivity(Intent(this, RiveActivity::class.java)) }
         card(getString(R.string.permissions_title),getString(R.string.permission_panel_note))
         val preferences = getSharedPreferences("ui", MODE_PRIVATE)
         body.addView(androidx.appcompat.widget.SwitchCompat(this).apply {
