@@ -18,6 +18,8 @@ class PluginSystem(context: Context) {
         dryRun = { manifest, files -> dryRun(manifest, files) },
         execute = { manifest, files, entry -> execute(manifest, files, entry) },
         trust = trust,
+        availableTools = setOf("plugin.echo", "time.now") + im.mrgreen.actions.ActionTools.registry.map { it.id },
+        requiredPermissions = mapOf("plugin.echo" to "plugin.output", "time.now" to "time.read") + im.mrgreen.actions.ActionTools.registry.associate { it.id to "actions.run" },
         memoryLimitBytes = 8 * 1024 * 1024
     )
 
@@ -49,7 +51,16 @@ class PluginSystem(context: Context) {
             return when (name) {
                 "plugin.echo" -> { requirePermission(manifest, "plugin.output"); if (!dry) lastOutput = args.optString("text").take(4096); args.optString("text").take(4096) }
                 "time.now" -> { requirePermission(manifest, "time.read"); if (dry) 0L else System.currentTimeMillis() }
-                else -> error("E_CAPABILITY_UNAVAILABLE")
+                else -> {
+                    requirePermission(manifest, "actions.run")
+                    val step = JSONObject().put("tool", name).put("args", args)
+                    require(im.mrgreen.actions.ActionTools.validate(step)) { "E_PLUGIN_TOOL_SCHEMA" }
+                    if (dry) "mock:$name" else {
+                        check(approval("Run plugin action $name with arguments ${args.toString().take(1000)}?")) { "E_PLUGIN_APPROVAL" }
+                        val green = app as? im.mrgreen.GreenApp ?: error("E_CAPABILITY_UNAVAILABLE")
+                        kotlinx.coroutines.runBlocking { im.mrgreen.actions.ActionRuntime(app, green.store, confirmRisk = { true }).executePlan(JSONArray().put(step)) }
+                    }
+                }
             }
         }
         override fun requestApproval(prompt: String): Boolean = if (dry) true else approval(prompt.take(500))

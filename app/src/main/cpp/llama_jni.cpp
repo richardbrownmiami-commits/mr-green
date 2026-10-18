@@ -403,11 +403,9 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         // prefix KV only and re-decode at least the last prompt token for fresh logits.
         common = std::min(common, tokens.size() - 1);
         size_t position = 0;
-        bool reused = false;
         if (common > 0) {
             if (llama_memory_seq_rm(memory, 0, static_cast<llama_pos>(common), -1)) {
                 position = common;
-                reused = true;
             } else {
                 // Hybrid/recurrent memories may reject a partial sequence removal.
                 llama_memory_clear(memory, true);
@@ -434,7 +432,7 @@ Java_im_mrgreen_engine_LlamaEngine_nativeGenerate(JNIEnv *env, jobject, jobjectA
         g_cached_prompt = tokens;
         const double prompt_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - prompt_start).count();
         g_prompt_tps = prompt_seconds > 0 ? suffix.size() / prompt_seconds : 0;
-        (void)reused; // Reuse is deliberately internal; KV byte stats remain unavailable (-1).
+        if (!progress(env, callback, "cache", static_cast<int>(position), static_cast<int>(tokens.size()))) return nullptr; // Metadata only; never exposes token values.
 
         using SamplerPtr = std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)>;
         SamplerPtr sampler(llama_sampler_chain_init(llama_sampler_chain_default_params()), &llama_sampler_free);

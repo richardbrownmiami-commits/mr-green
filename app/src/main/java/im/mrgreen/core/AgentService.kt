@@ -42,6 +42,7 @@ class AgentService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) {
             AgentController.cancel()
+            (application as GreenApp).roadmap.events.stop()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }

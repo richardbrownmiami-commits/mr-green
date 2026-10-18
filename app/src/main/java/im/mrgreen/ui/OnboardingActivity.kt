@@ -42,6 +42,7 @@ class OnboardingActivity : AppCompatActivity() {
         later.addView(TextView(this).apply{text=getString(R.string.not_implemented_title);textSize=17f;setTextColor(mint)})
         later.addView(TextView(this).apply{text=getString(R.string.not_implemented_note);textSize=14f;setTextColor(0xFFB8ABC9.toInt());setPadding(0,dp(6),0,0)})
         col.addView(later,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(12)})
+        col.addView(MaterialButton(this).apply { text="Live capabilities checklist and tests"; setOnClickListener { startActivity(Intent(this@OnboardingActivity, CapabilitySetupActivity::class.java)) } })
         status=TextView(this).apply{textSize=14f;setTextColor(mint);setPadding(0,dp(8),0,dp(8))}; col.addView(status); updateStatus()
         col.addView(MaterialButton(this).apply{text=getString(R.string.setup_done);setOnClickListener{finish()}},LinearLayout.LayoutParams(-1,dp(54)))
         col.addView(MaterialButton(this).apply{text=getString(R.string.skip_setup);setOnClickListener{finish()}},LinearLayout.LayoutParams(-1,dp(54)))

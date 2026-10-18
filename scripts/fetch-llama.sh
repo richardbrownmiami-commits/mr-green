@@ -12,3 +12,4 @@ fi
 git -C "$DEST" checkout --detach "$PIN"
 [[ "$(git -C "$DEST" rev-parse HEAD)" == "$PIN" ]]
 echo "llama.cpp pinned at $PIN in $DEST"
+python3 "$ROOT/scripts/apply-armv7-fixes.py" llama.cpp

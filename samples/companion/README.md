@@ -1,0 +1,3 @@
+# Optional Mr Green companion sample
+
+This is a separate Android application project, independently installed and signed. It demonstrates the version-1 Messenger Binder contract (`im.mrgreen.companion.BIND`) and harmless `demo.echo` only. It is not included in the Mr Green APK and must be explicitly signer-pinned and reviewed in the host before use. Open this folder in Android Studio or build with `./gradlew -p samples/companion :companion:assembleDebug` from the repository root with `ANDROID_HOME` configured; it uses Android Gradle Plugin 8.10.1, SDK/build-tools 36 and target SDK 30. There is no native code, so it carries no arm64 library. The host protocol/client implementation is built from `app/src/main/java/im/mrgreen/extensions/CompanionMessenger.kt`.

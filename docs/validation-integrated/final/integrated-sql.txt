@@ -1,0 +1,8 @@
+test_exact_dedup_preserves_different_tags_sources_and_importance (__main__.IntegratedStorageTests.test_exact_dedup_preserves_different_tags_sources_and_importance) ... ok
+test_snapshot_is_standalone_and_preserves_original_rows (__main__.IntegratedStorageTests.test_snapshot_is_standalone_and_preserves_original_rows) ... ok
+test_vector_ddl_and_bounded_candidate_query_run_against_actual_schema (__main__.IntegratedStorageTests.test_vector_ddl_and_bounded_candidate_query_run_against_actual_schema) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.032s
+
+OK

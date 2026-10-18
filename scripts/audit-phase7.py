@@ -34,7 +34,8 @@ for raw in paths:
         inspect(path.read_bytes(), str(path.relative_to(ROOT)))
 print("PASS: tracked/candidate source scan found no supported credential patterns or configured API values")
 
-for filename in sys.argv[1:]:
+integrated = "--integrated" in sys.argv[1:]
+for filename in [arg for arg in sys.argv[1:] if arg != "--integrated"]:
     with zipfile.ZipFile(filename) as apk:
         for name in apk.namelist():
             if name.lower().endswith((".pem", ".key", ".jks", ".keystore", ".gguf")) or any(part in {"shared_prefs", "databases", "crashes", ".env"} for part in name.split("/")):
@@ -49,13 +50,16 @@ for filename in sys.argv[1:]:
 manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text()
 baseline = subprocess.check_output(["git", "show", "f1b141bfe12d87c9a4d1f612f6265817479c3342:app/src/main/AndroidManifest.xml"], cwd=ROOT).decode()
 permissions = lambda text: set(re.findall(r'<uses-permission android:name="([^"]+)"', text))
-if permissions(manifest) != permissions(baseline):
-    raise SystemExit("FAIL: Phase 7 unexpectedly changed Android permissions")
+expected = permissions(baseline)
+if integrated:
+    expected |= {"im.mrgreen.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION", "android.permission.READ_CALL_LOG", "android.permission.RECORD_AUDIO", "android.permission.CAMERA", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.SET_WALLPAPER", "android.permission.BLUETOOTH", "android.permission.BLUETOOTH_ADMIN", "android.permission.RECEIVE_BOOT_COMPLETED", "com.android.alarm.permission.SET_ALARM"}
+if permissions(manifest) != expected:
+    raise SystemExit("FAIL: Android permission set differs from the explicit reviewed scope")
 if 'android:allowBackup="false"' not in manifest or 'android:name="im.mrgreen.ui.PluginsActivity" android:exported="false"' not in manifest:
     raise SystemExit("FAIL: backup/export policy")
 build = (ROOT / "app/build.gradle.kts").read_text()
 for marker in ('applicationId = "im.mrgreen"', 'targetSdk = 30', 'minSdk = 26', 'abiFilters += "armeabi-v7a"'):
     if marker not in build:
         raise SystemExit("FAIL: app/platform identity changed")
-print("PASS: im.mrgreen, Android target 30/min 26, unchanged permissions, non-exported plugin UI, backup disabled")
+print("PASS: im.mrgreen, Android target 30/min 26, reviewed permission set, non-exported plugin UI, backup disabled")
 print("LIMITATION: heuristic static scan and host checks do not establish Redmi A25/A26 acceptance.")

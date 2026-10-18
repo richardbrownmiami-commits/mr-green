@@ -189,7 +189,7 @@ class PackManager(
         val min = strictInt(m,"api_min"); val max = strictInt(m,"api_max"); require(min in 1..1 && max >= min && min <= 1)
         val layers = m.getJSONArray("layers"); require(layers.length() in 1..2)
         val layerSet = (0 until layers.length()).map { strictInt(layers,it) }.toSet(); require(layerSet.size == layers.length() && layerSet.all { it == 1 || it == 2 })
-        val perms = stringArray(m.getJSONArray("permissions"), 32); require(perms.all { it.length <= 80 && it in setOf("plugin.output","time.read","plugin.memory","plugin.log") })
+        val perms = stringArray(m.getJSONArray("permissions"), 32); require(perms.all { it.length <= 80 && it in setOf("plugin.output","time.read","plugin.memory","plugin.log","actions.run") })
         val tools = stringArray(m.getJSONArray("tools"), 32).toSet(); require(tools.size <= 32 && tools.all { it in availableTools && requiredPermissions.containsKey(it) && requiredPermissions[it] in perms })
         val triggers=m.getJSONArray("triggers"); require(triggers.length() <= 32)
         for (i in 0 until triggers.length()) require(triggers.get(i) is JSONObject || triggers.get(i) is String)
@@ -252,7 +252,7 @@ class PackManager(
     private fun readMemory() { (root.listFiles()?: emptyArray()).filter { it.name.startsWith(".memory-") && it.name.endsWith(".json") }.forEach { f->val id=f.name.removePrefix(".memory-").removeSuffix(".json"); require(validId(id)&&f.length()<=MAX_PACK_MEMORY_BYTES); val o=JSONObject(f.readText()); val m=HashMap<String,Any?>(); o.keys().forEach { k->require(k.length in 1..MAX_MEMORY_KEY); m[k]=o.get(k) }; memory[id]=m }; require(memory.values.sumOf { m->JSONObject().also { o->m.forEach { (k,v)->o.put(k,v) } }.toString().toByteArray(Charsets.UTF_8).size }<=memoryLimitBytes) }
     private fun strictInt(o:JSONObject,k:String):Int { val v=o.get(k); require(v is Int || v is Long && v.toLong() in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()); return (v as Number).toInt() }
     private fun strictInt(a:JSONArray,i:Int):Int { val v=a.get(i); require(v is Int || v is Long && v.toLong() in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()); return (v as Number).toInt() }
-    private fun validateToolPermissions(m:JSONObject) { val ps=stringArray(m.getJSONArray("permissions"),32).toSet(); val ts=stringArray(m.getJSONArray("tools"),32); require(ps.all { it in setOf("plugin.output","time.read","plugin.memory","plugin.log") } && ts.all { it in availableTools && requiredPermissions[it] in ps }) }
+    private fun validateToolPermissions(m:JSONObject) { val ps=stringArray(m.getJSONArray("permissions"),32).toSet(); val ts=stringArray(m.getJSONArray("tools"),32); require(ps.all { it in setOf("plugin.output","time.read","plugin.memory","plugin.log","actions.run") } && ts.all { it in availableTools && requiredPermissions[it] in ps }) }
 
     private fun recoverActivation() {
         val journal = File(root, ".activation-journal")

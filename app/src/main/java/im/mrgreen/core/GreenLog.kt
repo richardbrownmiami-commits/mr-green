@@ -10,9 +10,11 @@ import java.time.Instant
 /** Prompts, responses, file contents and credentials never enter this logger. */
 class GreenLog(private val context: Context, private val store: GreenStore) {
     @Volatile var foreground: Boolean = false
+    @Volatile var onIncident: ((String,String,String)->Unit)? = null
     @Synchronized fun write(level: String, component: String, message: String, code: ErrorCode? = null, planId: String? = null, stepId: String? = null) {
         try { store.log(level, component, code?.name, message, if (foreground) "foreground" else "background", planId, stepId) }
         catch (_: Exception) { Log.e("MrGreen", "Log database unavailable") }
+        if(code!=null && level in setOf("WARN","ERROR")) try { onIncident?.invoke(component.take(80),code.name,"A registered component reported a bounded failure; review permissions and private diagnostics.") } catch(_:Exception) {}
         try {
             val shared = android.os.Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()
             val dir = if (shared) File(Environment.getExternalStorageDirectory(), "Red/logs") else File(context.filesDir, "logs")

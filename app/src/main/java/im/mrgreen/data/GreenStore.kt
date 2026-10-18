@@ -146,6 +146,12 @@ class GreenStore(context: Context) : SQLiteOpenHelper(context.applicationContext
             put("code", code); put("message", message.take(4000)); put("app_state", appState)
             put("plan_id", planId); put("step_id", stepId); put("stack_trace", stack?.take(16000))
         })
+        if(code!=null && level in setOf("WARN","ERROR")) {
+            val now=System.currentTimeMillis()
+            val fingerprint="$component:${stepId.orEmpty()}:$code".take(240)
+            val card=org.json.JSONObject().put("component",component.take(60)).put("code",code.take(60)).put("tool",stepId?.take(80)).put("plan_id",planId?.take(80)).put("summary",message.take(300)).toString()
+            writableDatabase.execSQL("INSERT INTO incidents(fingerprint,component,error_code,count,first_seen,last_seen,card_json) VALUES(?,?,?,1,?,?,?) ON CONFLICT(fingerprint) DO UPDATE SET count=count+1,last_seen=excluded.last_seen",arrayOf(fingerprint,component.take(60),code.take(60),now,now,card))
+        }
     }
     fun logs(query: String = ""): List<LogEntry> = readableDatabase.rawQuery(
         "SELECT timestamp,level,component,code,message FROM logs WHERE message LIKE ? OR component LIKE ? OR level LIKE ? OR code LIKE ? ORDER BY id DESC LIMIT 500",

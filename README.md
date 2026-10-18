@@ -1,112 +1,63 @@
 # Mr Green
 
-An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit ARMv7). This is the **Phase 1 skeleton, Phase 2 AI Gateway and scoped Phase 7 plugins**, not the finished multi-phase product. SkillBot is not part of this repository.
+An offline-first Android assistant for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit ARMv7**. This repository now contains one integrated app spanning the root [roadmap](plan.md), including the previously missing phase modules. Existing gateway, GGUF chat, Rive replies and plugin features are retained. SkillBot is not part of this repository and was not changed.
 
-The owner authorized building before Phase 0 device verification and will check the app on the phone. **Neither Phase 0 nor the Phase 1 offline-chat/frame-rate gate is claimed as passed.** See [Phase 1 status](docs/phase1-status.md), [build results](docs/test-report.md) and the supplied [plan](docs/plan.md).
+**Version: 0.10.0-integrated-preview.** This is implementation code for phone testing, not a declaration that all roadmap acceptance gates passed. No Redmi installation, inference benchmark, MIUI longevity or third-party-app automation result is claimed. Read the [implementation status](docs/implementation-status.md), [test report](docs/test-report.md) and [phone guide](docs/user-guide.md).
 
-## 0.7.2 Conservative punctuation, contractions and typo matching
+## What is integrated
 
-The same `im.mrgreen` app now recognizes more surface variations without claiming semantic understanding. Matching folds case/whitespace, sentence-final `. ! ?`, a balanced pair of whole-question double quotes (including smart quotes), and a comma after an opening greeting or `please`. Straight/smart apostrophes in an explicit list of unambiguous contractions expand consistently: for example, `don't` → `do not`, and `can't` / `cannot` → `can not`. Negation is retained. Ambiguous `'s` / `'d`, possessives, unmatched/internal quotes, other meaningful internal punctuation, operators, decimals, URLs and numerical superscripts are not guessed or stripped into a different question.
+Open **Overview → All capabilities · Phases 3–10** in the same `im.mrgreen` app.
 
-Typo recovery is intentionally narrow: **one token from a reviewed, directional common-misspelling table**, one single-character edit or adjacent transposition, a **94% minimum whole-question edit-similarity score**, and **one unique rule alias**. For example, `What is the captial of France?` can find `what is the capital of france`; `capitol`, a different country/name, changed numbers/negation, paraphrases, reordered words, two typos, short low-score inputs and unlisted misspellings fall through. The score measures spelling similarity, not semantic confidence or answer correctness. Corrected replies are labeled `typo corrected` in the chat status.
+| Roadmap area | Implementation |
+|---|---|
+| 0–2: foundation and gateway | CPU-only llama.cpp/JNI, bundled SQLite/FTS5, chat, model picker, foreground service, diagnostics, optional encrypted-key Groq gateway, redaction and local fallback |
+| 3: actions | Rules-first Understanding Library, typed tool registry, sequential compound plans, time/date/date-offset/math, alarm/timer setup, file-and-DB notes, app launching, battery/settings and permission-gated flashlight |
+| 4: events and media | Opt-in notification/call/media observation, private event history, generic proactive alerts, quiet hours/allowlist/rate controls, MediaStore/MX Player/YouTube handoff, audio-state checks, optional reboot restoration |
+| 5: screen assistant | Explicit accessibility setup, one-shot node snapshots and screenshot preflight, secure/password/blocklist protection, local screen Q&A, draggable edge-snapping bubble, extracted-item confirmation and highlights |
+| 6: planning, learning and Doctor | Local JSON plan review, approved routine reuse, Learning inbox, typed data-only repair proposals, expected-incident/golden replay, explicit approval, undo, snapshots and staged database restore, metadata-only incident reports, idle maintenance |
+| 7: plugins | Existing bounded flows, QuickJS sandbox, signed `.redpack` validation, review/permissions/200 MiB cap, rollback and safe mode; approved packs can call registered core actions |
+| 8: knowledge | Bounded web search/fetch and recipe cache, TXT/PDF/EPUB import with local citations, FTS retrieval, explicit-public-argument HTTPS MCP JSON-RPC review |
+| 9: accessibility recipes | Explicitly reviewed WhatsApp, Meta AI and Gemini UI recipes plus an experimental settings-mediated Wi-Fi recipe; mismatches fail closed |
+| 10: extensions and polish | Installed-companion signer pinning and exact-argument review; signed ARMv7 engine-patch staging, startup revalidation and crash fallback; voice/theme/wallpaper/Bluetooth controls and live setup checklist |
 
-Aliases are built in memory for both saved keys and incoming questions. Existing `.rive` keys, answers, source classifications, file format and preferences are **not migrated or rewritten on loading/reloading**. This also lets a correctly spelled question find an eligible older misspelled key. If distinct keys collapse onto the same alias (including contractions or typo aliases), no answer is chosen, even for an exact-looking raw key; the owner can resolve the conflicting rules in the existing editor. Learning cannot silently resolve or overwrite that conflict. Exact identical-key imported-rule precedence is unchanged.
+All these modules share the existing database, application identity, engine queue and one local model. The optional `samples/companion` project demonstrates Layer 3; it is an extension example, **not another phase-specific assistant APK**.
 
-When saved rules exist, all uncertain/missing matches use **local GGUF**, even with auto-learning off and cloud enabled. If GGUF cannot load, the app reports that rather than replaying a doubtful answer. The stored cloud and learning settings are untouched; with no rules and learning off, the previous gateway behavior remains available. Rule imports still use the safe literal trigger grammar described below; flexible matching applies to questions and runtime aliases, not executable RiveScript syntax.
+### Fast local conversation memory
 
-Host verification: `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug` passed for the final source state. The suite reports 123 tests, 0 failures/errors and 3 existing skips; lint reports 0 errors / 52 warnings. Matching regressions cover punctuation, contractions, approved typos, ambiguous aliases, changed facts/negation, read-only legacy reloads and retained settings. Production-SQL host checks, ARMv7 packaging/security audit and APK signature verification passed. Phone installation, actual GGUF inference and performance remain device checks.
-
-## 0.7.1 Live Rive rules and local answer learning
-
-Open **Overview → Rive rules & learning** in the same `im.mrgreen` app. Rules are checked before cloud or GGUF generation. Import a `.rive` file or edit the imported text; validation and replacement approval happen before an atomic app-private write and live interpreter swap. A streaming answer is never rewritten. Rejected edits or failed reloads retain the working in-memory rules. Export uses the system document picker; no new storage permission is needed.
-
-**Auto-learning starts off.** Enabling it keeps rule misses on the local GGUF path, even if cloud is enabled. A successful, non-cancelled answer that ends before the token limit can become a literal rule immediately after generation. Repeat questions then use that saved answer without loading the model. Incomplete, failed, cancelled, unsafe-to-serialize or oversized answers are not learned. Changing/reloading/removing rules during generation prevents that turn from adding a stale rule. Imported owner rules always win; the model never overwrites them. Review/delete individual learned replies or clear them all in the rule screen.
-
-These are **unverified saved answers, not model training or verified knowledge**. A model mistake can be repeated; answers can become stale or depend on earlier conversation. Current normalization and limited typo handling are described above; there is no paraphrase or broad semantic matching. Disable learning or delete an item when inappropriate. Disabling learning stops new saves, not existing rule replies. Exported learned answers become ordinary imported rules if reimported, so review them first.
-
-For safety, this increment accepts a **literal-only RiveScript subset**, compiled with the pinned Java interpreter: `! version = 2.0`, whole-line `//` comments, one lowercase `+ trigger` containing letters/numbers/spaces and one plain `- reply`. Replies may use `\n` for newlines. No wildcard/regex triggers, executable objects, tags, redirects, topics or tools are accepted. For example:
-
-```text
-! version = 2.0
-
-+ hello
-- Hello! How can I help?
-```
-
-The combined imported/learned store is limited to 500 rules and 256 KiB; individual questions to 256 characters and replies to 4096. It lives in private `files/rive/rules.rive`, not the APK. No model, chat database or existing plugin is replaced. Real Redmi model inference and installation still require phone verification; use the original signing key for a data-preserving update.
-
-Host verification for this increment: `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug` succeeded with 101 passing tests, 3 existing skipped tests, and lint reporting 0 errors / 52 warnings. All 28 new Rive engine, learning-policy and UI tests passed. The three production-SQL host checks, 15 native QuickJS checks, APK ABI/security audit and debug signature verification also passed. This is not a phone inference, installation, performance or Android database-migration result.
-
-## 0.7.0 Plugins (Phase 7 directly after Phase 2)
-
-The owner requested skipping directly from Phase 2 to Phase 7. This change starts at `f1b141bfe12d87c9a4d1f612f6265817479c3342`; unfinished Phase 3 work is not included. **Phases 3–6 and 8+ are not implemented.** The same `im.mrgreen` app adds a bounded declarative flow runtime, native QuickJS sandbox, signed `.redpack` validation, mocked tests, explicit permissions/size approval, local/optional AI draft builder, 200 MiB library cap, previous-version rollback and failure safe mode. Open **Overview → Plugins · Phase 7** or **Library → Plugins · Phase 7**.
-
-Only safe plugin-local output, namespaced memory and clock APIs are exposed. Android action tools are not connected. Runtime HTTP/AI calls fail closed; the separate user-requested builder uses the existing Phase 2 gateway and local fallback. Active packs/security state are app-private rather than shared SD files; SD/file-picker imports are supported. No automatic GitHub downloader is claimed. See [pack format and signing](docs/phase7-pack-format.md), [flow syntax](docs/phase7-flow-format.md), [QuickJS limits](docs/phase7-quickjs.md) and [Phase 7 checks and phone checklist](docs/phase7-status.md).
-
-**A25/A26 remain pending on the Redmi.** Host tests, native loop/OOM checks and an ARMv7 APK do not establish device acceptance. This sandbox has a different development signing key; if Android rejects an update, **do not uninstall or clear app data**. Use the original signing key for a data-preserving update.
-
-## 0.2.0 AI Gateway (Phase 2)
-The owner asked to skip the optional 55 fps visual measurement and proceed with **Phase 2 only**. It remains unmeasured, not passed. The same `im.mrgreen` app now adds Groq-first text chat with local fallback, encrypted user-pasted credentials, runtime model discovery, redaction and P2 blocking, quota/backoff handling, metadata-only cloud audit, Cloud/Local badge and connectivity-loss pre-warm. Cloud starts **off**; offline inference remains available without an account or key. No SkillBot code is involved.
-
-Open **Overview → AI Gateway / Cloud**, paste your own key there, enable cloud and discover models, then choose fast and smart models. Do not put keys in source, Gradle properties or issue reports. Only explicit requests are cloud-eligible; previous unclassified chat history remains local. Sensitive provenance is always local and each personal-data category has a Local only switch. Later-phase actions, screen capture and Doctor are not implemented. Phase 7 adds only the scoped plugins described above.
-
-See [Phase 2 status and phone checklist](docs/phase2-status.md). Build-computer checks are not Redmi evidence: **A22 and A23 remain pending on the actual phone**. Do not uninstall or clear app data to bypass a signing mismatch. A source backup was made before editing; the app database upgrade is additive.
-
-## 0.1.3 ARMv7 inference fix
-
-Native Debug inference now uses `-O3` throughout llama.cpp and GGML; the earlier Debug configuration had no optimization flag. The APK still contains only ARMv7 native libraries, uses NDK 27.2 and targets Android API 30. CPU-only ARMv7 NEON flags replace the unnecessary VFPv4 assumption. Chat now shows prompt/token counts and elapsed time, writes content-free stage/heartbeat/first-token diagnostics, and requests a cooperative stop after 180 seconds. A native compute call must reach an abort check before that timeout can return; this is not a hard real-time kill.
-
-Start the phone retest with the existing Llama 3.2 1B GGUF, context **512**, **2 threads**, and a short message. Host build checks do not prove phone speed or solve every possible device/model issue. See [the diagnosis and phone checklist](docs/armv7-inference-fix.md). This build is signed with a new sandbox development key: if Android rejects an update, **do not uninstall or clear data**; use the original signing key for a data-preserving update.
-
-## 0.1.2 Violet startup fix
-
-The violet theme supplied literal text colors where Material 1.12.0 bottom navigation expects a color resource ID. Android-host startup tests reproduced `Resources.NotFoundException: Resource ID #0x0` during `MainActivity.buildShell()`. Resource-backed text colors fix that construction failure without changing the palette or native model code. See [the startup diagnosis and tests](docs/startup-fix-report.md). No owner-phone test is claimed.
-
-## 0.1.1 Violet fix
-
-This update fixes zero-token JNI batches, preserves native failure details in diagnostics, replaces the two composer buttons with a single Send/Stop control (including prompt evaluation), fixes fullscreen flags that broke keyboard resizing, and restyles all screens in opaque dark purple. See [the fix report](docs/violet-fix-report.md) for evidence and remaining phone checks.
-
-## In this increment
-
-- Kotlin and Views/Material UI: Chat, Overview, Models, Diagnostics, Library and permission onboarding.
-- Original faceted purple sentinel SVG/launcher identity with reduced-motion support.
-- Actual CPU-only llama.cpp JNI, streaming local responses and cancellation; Phase 2 adds optional cloud requests behind the gateway.
-- Model import through the system picker; app-private model storage, one model at a time.
-- Serialized engine queue, low-RAM context reduction, trim handling and idle unloading.
-- App-private bundled SQLite with FTS5 schema, persisted chat and identity, metadata logs and a last-crash report.
-- User-visible foreground service, active-task wake lock and Stop action.
-
-Android action tools, broader learning/Doctor, voice, overlay, accessibility automation and document RAG remain later phases. Only the bounded local reply learning above is implemented. No API key is required for local offline operation or local pack building/execution.
+Local chat no longer replays the whole transcript. It sends the current question with at most two relevant earlier snippets, trimmed to the loaded model's token budget. An app-private lexical-vector index uses deterministic word/character features and cosine ranking; it is **not a neural embedding model**, adds no second model, and can miss paraphrases. Native KV caching reuses identical prompt prefixes. **No recalled conversation snippets or old transcript are added to cloud requests.** Open the conversation-memory screen to disable or clear the index. Speed still needs measurement on the phone.
 
 ## Build
 
-Use JDK 17 (JDK 21 also works with this Gradle), Android SDK platform 36, build tools 36.0.0, NDK 27.2.12479018 and CMake 3.22.1. `minSdk=26`, `targetSdk=30`; sideload only. The wrapper uses Gradle 8.11.1.
+Use JDK 17, Android SDK 36, build-tools 36.0.0, NDK 27.2.12479018 and CMake 3.22.1. The Gradle wrapper is 8.11.1. The app remains `minSdk=26`, `targetSdk=30`, for sideloading.
 
 ```sh
 sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
-# Set ANDROID_HOME or add sdk.dir=/absolute/path/to/android-sdk in local.properties.
+# Configure ANDROID_HOME, or sdk.dir in local.properties.
 bash scripts/fetch-llama.sh
 bash scripts/fetch-quickjs.sh
-./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest
-python3 scripts/check-apk-abi.py \
-  app/build/outputs/apk/debug/app-debug.apk \
-  app/build/outputs/apk/release/app-release-unsigned.apk
+./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug
+python3 scripts/check-apk-abi.py app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release-unsigned.apk
+python3 scripts/check-inference-build.py app/.cxx/Debug/*/armeabi-v7a/compile_commands.json app/build/outputs/apk/debug/app-debug.apk
+python3 scripts/audit-phase7.py --integrated app/build/outputs/apk/debug/app-debug.apk
+python3 scripts/check-phase2-storage.py
+bash scripts/test-quickjs-host.sh
 ```
 
-`fetch-llama.sh` retrieves the exact upstream commit recorded in the Phase 0 host report. `fetch-quickjs.sh` verifies the official source archive SHA-256. Vendor source and GGUF weights are not committed. The native build is CPU-only and packages `armeabi-v7a` only; it never builds an arm64 variant. Run `bash scripts/test-quickjs-host.sh` for the standalone native sandbox harness and `python3 scripts/audit-phase7.py APK` for heuristic source/APK privacy checks.
+The fetch scripts pin native dependencies and apply narrow, reproducible ARMv7 overflow/bounds fixes. No arm64, GPU, OpenMP, KleidiAI or host-native instruction selection is enabled. Models and native vendor checkouts are not committed. Build helpers use Python on the computer; there is **no Python runtime or embedding model in the app**.
 
-**Installable development APK:** `app/build/outputs/apk/debug/app-debug.apk`. It uses Android's development signing key. The release output is deliberately **unsigned** (`app-release-unsigned.apk`) until the owner provides their release-signing process. Do not treat it as an installable signed release, and do not commit signing keys. Debug signatures can differ between builders. If Android rejects an update because of a signature mismatch, stop and use the original signing key for a data-preserving update. **Do not uninstall or clear app data as a workaround: this erases private chat and imported models.**
+The installable debug output uses the builder's development key. Gradle's release output is unsigned until separately signed. Any distributed development-signed release is labeled as such; it is not owner production signing. **If Android reports a signature mismatch, do not uninstall or clear data. Use the original signing key for a data-preserving update.** Models, chats and imported data are private app data.
 
-CI builds both variants and retains APKs as workflow artifacts; it does not publish a release or certify phone behavior.
+## Start on the phone
 
-## Try it on the phone
+1. Install a correctly signed build without erasing the existing app's data.
+2. Open the live setup checklist. Grant only the permissions and special access you need; the app does not grant them itself.
+3. Start local-model testing with a small compatible text GGUF, **context 512 and 2 threads**. Do not load two models or a vision/embedding model.
+4. Try `what time is it`, `what is 17% of 2450`, `what date is 45 days from today`, `make a note: buy milk and eggs`, and `check notes` before testing automation.
+5. Test alarm/timer setup in the external Clock UI before relying on it. An opened intent is not proof an alarm was saved.
+6. Run the [A1–A35 phone checklist](docs/test-report.md). Background survival, frame rate, RAM, screenshot protection, Binder and native-patch execution need real-device evidence.
 
-1. Install the debug APK. Open **Models** and import a text-only GGUF through the Android file picker. No all-files permission is necessary for private imports.
-2. Start with Bonsai Q2_0 and four threads, 2048 context. Only one local model is loaded. Do not download an mmproj/vision file.
-3. Tap Load, wait for the real loading result, then ask a short writing question in Chat. The Phase 1 app cannot perform Android actions.
-4. Stop generation with the Stop control. Unload before switching models. The service notification also lets you stop the engine.
-5. Use the [owner checklist](docs/user-guide.md) to record real-phone results; nothing about MIUI, speed or FPS is assumed.
+## Important limits
 
-Shared `/sdcard/Red` access is optional and requires the owner's explicit all-files grant. Database and imported models stay in private app storage; do not uninstall without backing up wanted files. Logs omit prompts and replies. Chat is stored locally. Native faults cannot be made universally crash-proof by Kotlin; device stability still needs testing.
+Clock handoffs, playback, third-party layouts and native patch loading must be verified on the target phone. Screen questions remain local-only; screenshot-to-cloud vision is not implemented. Private-source data is not sent to MCP. The web client and app recipes are bounded implementations, not universal website/app automation. Read the detailed limits in the implementation status before treating a roadmap gate as passed.
 
-The original editable identity is [assets/mr-green-violet-sentinel.svg](assets/mr-green-violet-sentinel.svg); matching Android vector paths are used in the launcher and app. No stock image was copied. See [third-party dependencies](docs/third-party.md).
+See [pack format](docs/phase7-pack-format.md), [flow syntax](docs/phase7-flow-format.md), [QuickJS limits](docs/phase7-quickjs.md), the [optional companion sample](samples/companion/README.md), [third-party dependencies](docs/third-party.md), and [VERIFY checklist](docs/verify-status.md). The original editable icon remains [the violet sentinel](assets/mr-green-violet-sentinel.svg).

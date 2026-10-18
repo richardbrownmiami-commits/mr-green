@@ -12,8 +12,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 8
-        versionName = "0.7.2-rive-matching"
+        versionCode = 9
+        versionName = "0.10.0-integrated-preview"
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {
@@ -47,6 +47,7 @@ android {
 }
 
 dependencies {
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.10.1")
@@ -62,3 +63,27 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
 }
+
+// Deterministic code-owned self-manual; never generated from private logs or model text.
+val generatedManual = layout.buildDirectory.dir("generated/self-manual-assets")
+val generateSelfManual by tasks.registering {
+    inputs.dir("src/main/java")
+    outputs.dir(generatedManual)
+    doLast {
+        val root=generatedManual.get().asFile.resolve("self_manual").apply { mkdirs() }
+        val pages=linkedMapOf(
+            "architecture" to "Mr Green uses one serialized engine queue and one local GGUF model. Deterministic registered actions precede saved replies and optional cloud chat. Plugins use bounded flows and QuickJS. User messages interrupt idle maintenance; no AI runs for each event.",
+            "privacy" to "Screen snapshots, notifications, call logs and private documents remain local. Screen answers are ephemeral and always local. Remote MCP accepts only explicitly reviewed user-typed public arguments. Credentials never enter logs, exports or packs.",
+            "doctor-limits" to "Doctor changes are data only. No identity, permission, code, tool registry or risk changes. Typed proposals require whitelist checks, at most ten rows, incident improvement and unchanged golden dry runs, then explicit approval. Unsupported changes fail closed. Undo restores stored rows; snapshots are separate backups.",
+            "miui" to "Android 11 and MIUI may suspend background work. Review autostart, battery restrictions and pop-up permissions manually. The app never grants its own special access. Clock setup opens external confirmation and is not proof an alarm exists. Phone performance and longevity acceptance remain device tests.",
+            "known-fixes" to "Missing permission: open live setup checklist and grant only the needed access. No model: import a compatible ARMv7-supported GGUF and load it. Out of memory: unload and reduce context to 512 and two threads. App layout mismatch: stop recipe and review current UI. Native patches require an independently reviewed owner key, a signed ABI-compatible library and explicit approval; never install unvetted native code."
+        )
+        pages.forEach { (name,text) -> root.resolve("$name.md").writeText("# $name\n\n$text\n") }
+        val toolSource=file("src/main/java/im/mrgreen/actions/ActionRuntime.kt").readLines().filter { it.contains("ToolSchema(\"") }
+        toolSource.chunked(5).forEachIndexed { n,lines -> root.resolve("tools-$n.md").writeText("# Registered tool schemas\n\n"+lines.joinToString("\n")+"\n") }
+        val schema=file("src/main/java/im/mrgreen/data/GreenStore.kt").readLines().filter { it.contains("CREATE TABLE ") }
+        schema.chunked(3).forEachIndexed { n,lines -> root.resolve("database-$n.md").writeText("# Database tables\n\n"+lines.joinToString("\n")+"\n") }
+    }
+}
+android.sourceSets.getByName("main").assets.srcDir(generatedManual)
+tasks.named("preBuild").configure { dependsOn(generateSelfManual) }

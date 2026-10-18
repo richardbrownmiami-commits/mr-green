@@ -60,7 +60,7 @@ class OrbView(context: Context) : View(context) {
         emblem.draw(canvas); canvas.restore()
         if (mode == Mode.THINKING) {
             paint.style = Paint.Style.STROKE; paint.strokeWidth = resources.displayMetrics.density * 2f
-            paint.strokeCap = Paint.Cap.ROUND; paint.color = 0xFFB98AFF.toInt()
+            paint.strokeCap = Paint.Cap.ROUND; paint.color = im.mrgreen.extensions.ThemeManager.palette(context).accent
             canvas.drawArc(orbit, phase*360f, 74f, false, paint)
         } else if (mode == Mode.ERROR) {
             paint.style = Paint.Style.STROKE; paint.strokeWidth = resources.displayMetrics.density * 2f

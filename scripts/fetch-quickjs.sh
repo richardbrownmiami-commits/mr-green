@@ -13,3 +13,4 @@ rm -rf "$DEST"
 mkdir -p "$DEST"
 tar -xJf "$TMP/quickjs.tar.xz" --strip-components=1 -C "$DEST"
 echo "QuickJS $VERSION verified and unpacked at $DEST"
+python3 "$ROOT/scripts/apply-armv7-fixes.py" quickjs

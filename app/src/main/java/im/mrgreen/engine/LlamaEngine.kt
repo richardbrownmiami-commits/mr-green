@@ -24,8 +24,14 @@ data class EngineStats(
 
 class LlamaEngine {
     companion object {
-        private val loadError: String? = try { System.loadLibrary("mrgreen"); null }
-        catch (t: Throwable) { "Native engine unavailable: ${t.message ?: t.javaClass.simpleName}" }
+        private val loadError: String? = try {
+            im.mrgreen.extensions.EnginePatchRuntime.beginOperation("link")
+            val replacement=im.mrgreen.extensions.EnginePatchRuntime.selectedLibrary
+            if(replacement==null) System.loadLibrary("mrgreen") else System.load(replacement)
+            im.mrgreen.extensions.EnginePatchRuntime.finishOperation()
+            null
+        }
+        catch (t: Throwable) { im.mrgreen.extensions.EnginePatchRuntime.reject(); "Native engine unavailable: ${t.message ?: t.javaClass.simpleName}" }
     }
     private external fun nativeLoad(path: String, nCtx: Int, nBatch: Int, nUbatch: Int, threads: Int): String?
     private external fun nativeUnload()
@@ -40,16 +46,18 @@ class LlamaEngine {
 
     fun load(path: String, params: LoadParams = LoadParams()): EngineResult = guarded {
         if (loadError != null) return EngineResult(false, loadError)
-        nativeLoad(path, params.nCtx, params.nBatch, params.nUbatch, params.threads)
+        im.mrgreen.extensions.EnginePatchRuntime.beginOperation("load")
+        nativeLoad(path, params.nCtx, params.nBatch, params.nUbatch, params.threads).also { im.mrgreen.extensions.EnginePatchRuntime.finishOperation() }
     }
     fun unload() { try { nativeUnload() } catch (_: Throwable) { } }
     fun generate(messages: List<ChatTurn>, opts: GenerationOptions = GenerationOptions(), onProgress: (String, Int, Int) -> Unit = { _, _, _ -> }, onToken: (String) -> Unit): EngineResult = guarded {
         val m = messages.flatMap { listOf(it.role, it.content) }.toTypedArray()
         val o = arrayOf(opts.maxTokens.toString(), opts.temperature.toString(), opts.topK.toString(), opts.topP.toString(), opts.minP.toString(), opts.presencePenalty.toString(), opts.grammar ?: "", opts.stop.joinToString("\u0001"))
+        im.mrgreen.extensions.EnginePatchRuntime.beginOperation("generate")
         nativeGenerate(m, o, object : TokenCallback {
             override fun onToken(token: String) = onToken.invoke(token)
             override fun onProgress(stage: String, completed: Int, total: Int) = onProgress.invoke(stage, completed, total)
-        })
+        }).also { im.mrgreen.extensions.EnginePatchRuntime.finishOperation(generated = it == null) }
     }
     fun cancel() { try { nativeCancel() } catch (_: Throwable) { } }
     fun stats(): EngineStats = try {

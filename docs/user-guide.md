@@ -1,48 +1,86 @@
-# Try Mr Green on your Redmi 9
+# Mr Green: phone setup and first tests
 
-This build is an early offline chat skeleton. You check the phone; the build environment does not certify device behavior.
+This integrated preview targets **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit ARMv7**. Phone behavior has not been tested on your device.
 
-## First chat
+## Preserve your existing data
 
-Install the debug APK, open the app and review the onboarding checklist. All-files access and overlay access are optional; the Phase 1 chat can import a model without either. Accessibility and notification-reading services are not implemented in this increment, and overlay permission alone does not create a bubble.
+If Android reports a signing mismatch, **stop—do not uninstall or clear app data**. Use the original signing key for a data-preserving update. Uninstalling removes private chats, models and imported data. Development-signed APKs are for testing, not owner production signing.
 
-Open **Llama**, import the text-only `.gguf` from your file picker, then load it. Start with Bonsai Q2_0, four threads and 2048 context. If free RAM is below 600 MiB, the app reduces the requested context to at most 1024. Loading can take a while. A failed load must show an error, not a fabricated response.
+## Open the new dashboard
 
-Ask a short writing question such as “Write a two-line greeting.” Check that tokens stream and the completed reply remains after reopening the app. Try Stop, then try another request. Switch to airplane mode to confirm no internet is needed. Phase 1 has no cloud provider.
+Go to **Overview → All capabilities · Phases 3–10**. All modules use the same `im.mrgreen` app. The optional companion sample is an extension demonstration, not another phase-specific assistant.
 
-Only one local model can be loaded. Use Unload before switching. The foreground notification has a Stop action that releases the engine; an Android process kill is not treated as a completed request. Idle models are unloaded after about ten minutes.
+Start with the live setup checklist. Grant only the access you need:
 
-## MIUI setup
+- Overlay/Accessibility for explicit screen captures and UI recipes.
+- Notification access for new notification events. Text retention starts off.
+- Optional Call log and local media permissions for those features.
+- Camera for the flashlight; microphone/offline voice packs only for voice controls.
 
-If you want the service to survive while another app is open, review these settings yourself:
+The app does not grant special access itself. Cloud is unnecessary for local tools, screen Q&A, books or local-model chat.
 
-- Autostart: on.
-- Battery saver for Mr Green: No restrictions.
-- Lock Mr Green in Recents.
-- For future overlay work: Display pop-up windows while running in the background and Show on lock screen.
+## Try these first
 
-MIUI varies by version. Where no reliable deep link exists, the onboarding item is a manual check, not an automatically verified success. Reopen onboarding from Panel. Do not grant permissions for later features just to complete a checklist.
-
-## What to record
-
-Keep Bonsai's measured generation speed and peak process RAM: the plan requires at least 2.0 tokens/second and less than 1.2 GB peak RAM. Compare thread counts 3, 4, 6 and 8; no winning count is assumed. The Benchmark button is not a completed automated benchmark in this increment.
-
-Also record cold start, orb/chat-scroll frame rate, real FTS5 initialization, load timing for private and shared storage, cancellation behavior, MIUI process survival and any errors. **None of these checks is marked passed by this handoff.** Use Qwen as fallback only after your measured Phase 0 decision, not based on host speed.
-
-## Logs and data
-
-Chat and identity are in app-private SQLite. Imported models are in private `files/models`. Uninstalling removes private app data. Do not uninstall a build with wanted data without a backup plan. Shared `/sdcard/Red/models` is only browsed if all-files access is explicitly granted.
-
-Logs keep action/runtime metadata, not full prompts or replies. They use a 20,000-row database ring and rolling files. Without all-files access, files stay private; with it, the logger can use `/sdcard/Red/logs`. A managed crash leaves a last-crash metadata report for the next start. Native hard crashes still need Android system diagnostics.
-
-## Later phases
-
-Groq, cloud redaction, tools and alarms, voice, screen reading, overlays, plugin execution, Doctor, RAG and app automation are not working features of this skeleton. Do not use the app to control another app or expect it to read a screen yet.
-
-The later system-theme feature needs a one-time ADB grant:
-
-```sh
-adb shell pm grant im.mrgreen android.permission.WRITE_SECURE_SETTINGS
+```text
+what time is it
+what is 17% of 2450
+what date is 45 days from today
+make a note: buy milk and eggs
+check notes
+set an alarm 7 am with note wake up gym
+open calculator and tell me the time and turn on the flashlight
 ```
 
-That permission is not requested by this Phase 1 manifest and the command is not expected to work yet. Do not run it for this build. It is retained here as the plan's future setup requirement, not a completed capability.
+Time/math/date should use registered tools, not AI. Notes write and read back a private file and DB row. Missing permissions should produce a clear failure.
+
+Alarm/timer handoffs open the external Clock UI. **Save and verify there before relying on them.** An opened intent is not a verified saved alarm; check future-day behavior yourself.
+
+## Load one local model
+
+Import a compatible text GGUF in Models. Begin with **context 512 and 2 threads**, and a short question. Stop/unload before switching. Do not load a second model or a vision/embedding model.
+
+Chat sends the current question, not the whole transcript. Up to two relevant, budgeted snippets may be recalled locally; native KV caching reuses an identical prefix. Lexical vectors can miss paraphrases. Use the conversation-memory screen to clear or disable the index. Old conversation recalls are not added to cloud requests.
+
+## Events, media and MIUI
+
+Enable monitoring and only the sources you want. A visible foreground service supports monitoring. Proactive alerts start off and have quiet hours, an app allowlist and an interval limit. Notification text stays off unless explicitly enabled.
+
+`play music` asks for a title/artist; give the short follow-up promptly. Local items open MX Player/a compatible player; otherwise YouTube search opens. Active audio does not prove the intended track is playing. Generated playlists are not included.
+
+Review MIUI Autostart, battery “No restrictions,” Recents lock, pop-up and lock-screen permissions manually; names vary by MIUI. Optional reboot restoration must be explicitly enabled and can still be blocked by MIUI. The service Stop action disables monitoring. No task/model is silently replayed after a kill.
+
+## Screen and app recipes
+
+Grant accessibility/overlay yourself, then invoke a one-shot capture. Test an ordinary page, a password field, a blocklisted app and a secure window. Protected captures must fail closed. Check extracted-item confirmation and highlight positions.
+
+Screen questions stay **local-only**; screenshot-to-cloud vision is not implemented. No OCR/vision model is added. WhatsApp sends and external AI-app prompts need explicit review; verify the real recipient/text and outcome. Use harmless test content first. A changed/missing control must stop the recipe, not continue guessing.
+
+## Learning and Doctor
+
+Repeated successful routines can appear in the Learning inbox; approval is required. Unverified external handoffs must not be treated as verified learned routines.
+
+For a misunderstood command, enter the failed phrase and a known working equivalent in **Repair a misunderstood command**. Review the literal rule or optional local-model draft, then validate. Intended-incident and golden replays must pass. Creating a proposal is not approval; review it separately in Doctor. Applied changes have Undo.
+
+Snapshots cover the **SQLite database only**, not models, preferences or separate files. Restore requires explicit confirmation, validates/stages an app-owned snapshot and waits for a full process restart. Force-stop in Android App settings and reopen to activate it. A recovery copy of the previous DB is retained. Phone restore testing remains necessary.
+
+Doctor cards and private bug reports contain bounded metadata. A native-operation interruption is not proof of a native crash; collect Android crash/logcat evidence. User input cancels maintenance between tasks, but an active SQLite statement is not a hard real-time interrupt.
+
+## Knowledge and extensions
+
+Import TXT/PDF/EPUB in Knowledge, ask a question and check the citation. Watch RAM on a large book. Web answers should show a fetched source.
+
+MCP accepts explicitly reviewed **public user-typed arguments**, not automatic forwarding of private documents/events/screens. It is a bounded HTTPS JSON-RPC client, not a universal OAuth/SSE manager.
+
+Companion tools need an independently checked signer and tool review. Native patches need a separately checked owner fingerprint, a signed ARMv7 bundle, code review and explicit approval; restart to activate. A signature establishes origin, not safety. Use rollback/built-in-engine controls when testing.
+
+## Record actual phone results
+
+Use [A1–A35](test-report.md) and the [VERIFY checklist](verify-status.md). Record app/model version, context/threads, steps, expected/actual outcome and private diagnostics. No speed, FPS, peak RAM or five-day survival is assumed from the build.
+
+For an optional ADB system-night-mode test (not a required app permission):
+
+```sh
+adb shell cmd uimode night yes
+```
+
+Restore your preferred system mode afterward. The app also has its own appearance controls.

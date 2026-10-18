@@ -1,91 +1,72 @@
-# Build and owner checks
+# Integrated build and phone test status
 
-The current increment is **Phase 2 only: AI Gateway**, in the existing `im.mrgreen` app. The optional 55 fps Redmi visual measurement was explicitly left **unmeasured/skipped**, not passed. **No A22/A23 acceptance gate has been run on the Redmi.** Host tests are not phone tests.
+**Mr Green 0.10.0-integrated-preview, versionCode 9.** One integrated `im.mrgreen` app; root roadmap modules are joined rather than separate phase APKs. Base commit: `92483cc7df3103ecb5f36630004e92ea96fe59a2`. SkillBot was not modified.
 
-## Phase 2 host results
+**Host build/regression checks pass. No Redmi/on-device acceptance test was run.** This report does not declare every requirement in `plan.md` complete. Clock verification, generated playlists, optional cloud vision and several device-dependent paths remain incomplete or unverified; see [implementation limits](implementation-status.md).
+
+## Build-computer results
 
 | Check | Result |
 |---|---|
-| Debug APK and unsigned release APK | PASS — final source builds both variants, version `0.2.0-ai-gateway`, versionCode 5. |
-| Host unit tests | 48 passed, 0 failures/errors; 3 Android/requery runtime tests explicitly skipped on the Linux JVM (51 discovered). |
-| Production SQL schema checks | 3 passed: additive v1→v2 migration statements, preserved messages/facts/FTS/audit, metadata-only log and bounded TTL cache. This is host SQLite, not Android/requery migration proof. |
-| Gateway fake-transport and redaction tests | PASS — policy/no-send, sensitive provenance, redaction, attempted-send auditing, per-model persisted backoff/reset recovery, deferred background work, JSON retry/staging, cancellation, cache and discovery. No live Groq request/key was used. |
-| Startup/navigation | PASS in Robolectric API 26 and 30, including the same-app Cloud settings badge. Not an Android phone test. |
-| Native flags and APK ABI | PASS — 76 ARMv7 Android translation units at effective `-O3`; both APKs contain only three ELF32 ARM libraries under `lib/armeabi-v7a/`. |
-| Package | PASS — `im.mrgreen`, minSdk 26, targetSdk 30, armeabi-v7a only. |
-| Debug signing | Valid v2 development signature, **different from the earlier recorded APK certificate**. Not a verified in-place update. |
-| APK secret-shaped-value check | No Groq-key-shaped value, fake test credential, signing keystore or GGUF packaged. This is not proof of live phone log behavior with a configured key. |
-| Lint | Completed with 0 errors and 38 warnings, including existing deprecations/localization warnings. |
-| Redmi, live Keystore/Groq, actual migration/failover/privacy | NOT RUN; owner/device pending. |
+| Final Gradle gate | **PASS:** `:app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug` |
+| JVM/Robolectric tests | **161 discovered; 158 passed, 0 failures/errors, 3 existing skips.** Includes retained gateway/Rive/plugin tests and new routing, schema, screen, learning, extension crypto/policy, vector-feature and media-clarification regressions. |
+| Production SQL | **6 checks passed:** the three retained migration/audit/cache checks plus snapshot/FTS preservation, executable vector-candidate query and exact-dedup metadata preservation. Host SQLite is not Android/requery evidence. |
+| QuickJS native host harness | Passed API/dynamic-code restrictions, heap/quota, loop and serialization deadline checks. This is host execution, not ARMv7 execution. |
+| Optional companion sample | **PASS:** standalone `:companion:assembleDebug`; Java-only demonstration of the versioned Messenger `demo.echo` contract. Binder execution on phone remains untested. |
+| Lint | **0 errors, 255 warnings.** Warnings include legacy/platform deprecations, programmatic UI localization/accessibility/style warnings and deliberate synchronous crash-journal commits. Warnings are not hidden or presented as zero. |
+| Native compiler/package audit | **PASS:** 83 ARMv7 Android translation units at effective `-O3`; ELF32 ARM libraries only under `lib/armeabi-v7a/`. No arm64/GPU/OpenMP/KleidiAI backend is intended or enabled. |
+| Native libraries | `libmrgreen.so`, `libmrgreen_quickjs.so`, `libsqlite3x.so`, `libc++_shared.so` |
+| App/platform identity | `im.mrgreen`; minSdk 26; targetSdk 30; compile SDK/build-tools 36; NDK 27.2.12479018; JDK 17; CMake 3.22.1 |
+| Development APK signing | Both delivered APKs verify with Android `apksigner`. The release variant is **development-signed**, not owner production signing. Gradle also produces an unsigned release. |
+| Privacy/source/package audit | Heuristic credential-pattern, packaged-private-file and explicit-permission-set audits are retained with an integrated-scope option. These are not proof of runtime traffic behavior. |
+| Redmi, real GGUF inference, live Groq, Android Keystore/SQLite migration, MIUI, native patches, Binder, FPS/RAM | **NOT RUN.** No live key was requested or used. |
 
-Evidence: [final Gradle validation](validation-phase2/final-validation.txt), [host tests and APK audit](validation-phase2/apk-and-tests.txt), [SQL checks](validation-phase2/storage-sql.txt), [native flags](validation-phase2/native-flags.txt), [ABI audit](validation-phase2/apk-abi.txt), [package](validation-phase2/package-badging.txt), [development signature](validation-phase2/debug-signature.txt), and [lint warnings](validation-phase2/lint-results-debug.txt). Test XML is retained beside these files.
+Evidence is in [final validation](validation-integrated/final/): build logs, test summary, SQL checks, native flags, ABI audit, signatures and [APK SHA-256 hashes](validation-integrated/final/apk-sha256.txt). Historical phase reports remain historical, not current totals.
 
-**Installation safety:** the earlier recorded certificate SHA-256 begins `2789187d`; this sandbox's debug certificate begins `7bc216c1`. If the installed app uses the earlier key, this debug APK cannot update it. Do not uninstall, clear data or re-sign an APK to work around that mismatch. The unsigned release APK must be signed with the original owner's key for a data-preserving update. No phone install/data operation was performed. The original source was bundled before edits; Git history is preserved.
+## A1–A35: run these on the Redmi
 
-See [Phase 2 behavior and pending Redmi checklist](phase2-status.md).
+Every phone result below is **NOT RUN**. Host coverage is noted separately and must not be relabeled as a device pass.
 
-## Earlier Phase 1 build history
-
-The following build results are historical, not the current Phase 2 test totals.
-
-## Build-only results
-
-| Build-only check | Result |
+| Test | What to check / current caveat |
 |---|---|
-| Debug APK, Kotlin and ARMv7 native compilation | **PASS** — `:app:assembleDebug` completed. |
-| Release APK compilation | **PASS** — `:app:assembleRelease` completed; output is deliberately unsigned. |
-| Host unit tests | **PASS** — 7 tests, 0 failures/errors (4 memory/admission policy tests, 3 missing-native-runtime failure tests). These do not run inference or Android UI. |
-| APK native-library ABI check | **PASS** — both APKs contain only `lib/armeabi-v7a/`: `libmrgreen.so`, `libc++_shared.so`, `libsqlite3x.so`. |
-| Debug signing verification | **PASS** — Android `apksigner` verifies the development APK's v2 signature. This is not the owner's production signing key. |
-| Runtime/device checks | **NOT RUN** — no phone, emulator, model inference, FPS, RAM or MIUI acceptance measurements. |
+| A1 | Time, `17% of 2450`, date +45 days use tools in under 1 second. Host routing/arithmetic tests pass; phone timing unknown. |
+| A2 | Clock saves the requested alarm/day and DB state agrees. Current handoff is explicitly pending external verification; a Clock intent is not a saved alarm. |
+| A3 | Note file and DB row read back; `check notes` lists it. Production code verifies read-back; Android filesystem/SQLite needs testing. |
+| A4 | Alarm label and linked note are correct. Note/label planning exists; fully verified Clock/DB linkage is not established. |
+| A5 | Calculator → time → flashlight execute in order, with progress and one final result. Grant Camera only for this test. |
+| A6 | Media asks for a title, accepts a short follow-up and hands off to a player. Check actual requested playback; active audio is not track identity. Generated playlists are not included. |
+| A7 | Opted-in missed-call/notification event creates a generic proactive alert within 10 seconds; check quiet hours/allowlist. |
+| A8 | Review a local typed plan with alarm/notification/media steps; verify all external outcomes. Missing arguments require clarification, not guessed defaults. |
+| A9 | Three equivalent verified successful episodes propose a routine; approval enables deterministic reuse; rejection remains inactive. |
+| A10 | A fetched web answer has a real source and a reusable cached recipe; live providers were not exercised. |
+| A11 | Import representative TXT/PDF/EPUB, inspect cited chunks and measure indexing RAM. |
+| A12 | Harmless confirmed WhatsApp send and Meta AI/Gemini prompt/result; change a label and confirm a safe mismatch error. |
+| A13 | Five days/restarts, MIUI restrictions reviewed, peak RAM <1.2 GB target/<2 GB hard cap, no crashes. No longevity result exists. |
+| A14 | Failed registered action creates one deduplicated Doctor card promptly; inspect occurrence count and metadata-only report. |
+| A15 | Failed phrase + known working equivalent → reviewed typed diff → intended-plan/golden replay → explicit approval/rejection. |
+| A16 | Reject identity/permission/registry/code edits, arbitrary SQL, invalid operations, unknown keys and oversized changes. Host validator tests cover representative rejects. |
+| A17 | A candidate that breaks golden plans is rejected; inspect the failure. Actual native-SQL replay remains device pending. |
+| A18 | Undo restores exact recorded rows. Test staged snapshot restore at a full restart; database only, not model/preferences/files. Host snapshot SQL check passes. |
+| A19 | Idle/battery gating and user-input cancellation; measure latency. An active SQLite statement is not a hard one-second interrupt. |
+| A20 | Java/native interruption or permission failure leaves useful diagnostics and no guessed DB fix. Native interruption is not itself a native backtrace. |
+| A21 | Automatic exact-duplicate cleanup, FTS maintenance, log pruning, snapshot and disable switch. Host dedup preserves distinct tags/source/importance. |
+| A22 | Owner-configured Groq online, local offline and 429 fallback/backoff; inspect the mode badge and metadata-only send log. Synthetic host checks pass. |
+| A23 | Redaction/P2 no-send, credentials absent from APK/log/export; synthetic policy tests and heuristic packaging audit are not runtime traffic proof. |
+| A24 | At least 90% of the 200 golden phrasings route without AI; host fixture test passes. Test priorities, negatives, pack rollback and cap on phone. |
+| A25 | Install a reviewed signed flow pack; inspect permissions/tests/size and rollback. |
+| A26 | QuickJS host-only API, loop <5 seconds, heap cap and crash safe mode on ARMv7. Native host harness passes separately. |
+| A27 | Wrong companion signer rejected; correct installed signer pinned; reviewed tool invokes with exact confirmed args. Host trust policy/sample build pass; real Binder is untested. |
+| A28 | Reviewed signed ARMv7 patch loads after restart; wrong signature rejected; repeated interrupted operations enter fallback/rollback. Host crypto/policy simulations pass; no replacement library was loaded on a phone. |
+| A29 | Bubble drag/edge snap, rotation and capture-before-panel; measure <500 ms panel latency. |
+| A30 | Local summary, tap list, confirmed extract actions and correct visual highlights. |
+| A31 | Secure window/password/blocklist fails closed and yields no usable snapshot. Host policy tests are not API 30 proof. |
+| A32 | Local-only screen mode sends no network. **Cloud-screen/vision branch is not implemented**, so the full optional-cloud variant cannot pass yet. |
+| A33 | Measure ≥55 fps, cold start <3 s, UI overhead ~80 MB and idle overlay <25 MB. None is inferred from Robolectric. |
+| A34 | Live permission checklist/deep links/Test controls; verify actual Android/MIUI state changes. |
+| A35 | Main app and overlay theme/accent update without restart; separately inspect system/third-party surfaces. |
 
-Toolchain: JDK 17, Gradle 8.11.1, Android Gradle Plugin 8.10.1, compile SDK/build tools 36, NDK 27.2.12479018 and CMake 3.22.1. `targetSdk=30` and `minSdk=26` follow the plan. Only `ExpiredTargetSdkVersion`, a Play Store distribution check incompatible with this intentional sideload target, is disabled; other fatal release lint checks remain enabled.
+## Installation safety
 
-The native engine uses the model's embedded template, an empty thinking prefix for detected thinking models, UTF-8-safe incremental output, and prefix-KV reuse where the model memory supports tail removal. Unsupported hybrid cache removal safely falls back to a fresh decode. These are implemented and compile, but their behavior and performance with the selected phone/model are OWNER PENDING. KV-byte reporting is explicitly unavailable (`-1`); native malloc heap is not total process peak RAM.
+The signing key is a builder development key. This is **not a verified in-place update** of the owner's installed APK. If Android reports a mismatch, do not uninstall, clear data or re-sign the old app; use the original key to build an update. No phone app/data operation was performed.
 
-[Build output](build-output.txt) records the final Gradle result, ABI inspection and signature verification.
-
-## Phone acceptance
-
-| Check | Status | Why |
-|---|---|---|
-| Phase 1: offline chat works | OWNER PENDING | Requires model loading and a real answer on Redmi 9. |
-| Phase 1: optional 55 fps visual measurement | SKIPPED / UNMEASURED | Explicit owner instruction; no pass claimed. |
-| A1–A5: deterministic tools, alarms, notes, compound actions | NOT IMPLEMENTED | Phase 3. |
-| A6–A7: media, notification and missed-call rules | NOT IMPLEMENTED | Phase 4. |
-| A8–A9: AI planner and approved learning | NOT IMPLEMENTED | Phase 6. |
-| A10–A11: web and RAG | NOT IMPLEMENTED | Phase 8. |
-| A12: app accessibility recipes | NOT IMPLEMENTED | Phase 9. |
-| A13: five-day stability and memory | NOT RUN | Owner's long-duration device check. |
-| A14–A21: Doctor and maintenance | NOT IMPLEMENTED | Phase 6. |
-| A22: Groq/local gateway failover | IMPLEMENTED / REDMI PENDING | Host fake-transport checks pass; live online/airplane/429 flow needs the phone. |
-| A23: cloud redaction | IMPLEMENTED / REDMI PENDING | Synthetic host policy/redaction checks pass; real device send/log/audit checks remain. |
-| A24: Understanding Library | NOT IMPLEMENTED | Phase 3. |
-| A25–A26: packs and sandboxed scripts | NOT IMPLEMENTED | Phase 7. |
-| A27–A28: companion APK and engine patch | NOT IMPLEMENTED | Phase 10. |
-| A29–A32: overlay, screen privacy and questions | NOT IMPLEMENTED | Phase 5. |
-| A33: FPS, startup and RAM budgets | OWNER PENDING | UI exists; no phone measurements. Overlay not implemented. |
-| A34: onboarding checklist and tests | OWNER PENDING / PARTIAL | Phase 1 permission links/checklist; later-feature tests cannot pass yet. |
-| A35: live theme and overlay theme | NOT IMPLEMENTED | Fixed Phase 1 dark design; full theme switching/overlay later. |
-
-## VERIFY register
-
-| Plan item | Current result |
-|---|---|
-| Bonsai Q2_0 compatibility | Earlier report records a host smoke test only. Android runtime loading OWNER PENDING. |
-| ARMv7 native build | Build-only outcome recorded above when complete; device execution OWNER PENDING. |
-| Thread counts, speed, RAM, storage location | OWNER PENDING. Four threads is a starting setting, not a measured winner. |
-| FTS5 on the phone | Bundled SQLite selected instead of trusting MIUI system SQLite. Runtime initialization OWNER PENDING. |
-| QuickJS ARMv7 build and sandbox | NOT IMPLEMENTED; later phase. |
-| Groq models, streaming, JSON and 429 fallback | Implemented and fake-transport tested; no live key/request or Redmi proof. |
-| MIUI overlay, screenshot, node-tree reading | NOT IMPLEMENTED / OWNER PENDING in Phase 5. |
-| Optional Orb/chat 55 fps visual measurement | SKIPPED / UNMEASURED by owner. |
-| MX Player package names | NOT VERIFIED; Phase 4. |
-| Free no-key web sources | NOT VERIFIED; Phase 8. |
-| Gemini package and accessibility recipes | NOT VERIFIED; Phase 9. |
-| Groq vision models | NOT VERIFIED; screenshots-to-cloud not implemented and not enabled. |
-| Engine patch loading on Android 11 | NOT VERIFIED; Phase 10. |
-
-## Known limits
-
-The owner-supplied final icon SVG was absent; the current icon is provisional. This development handoff is not a signed production release. The database includes future-phase tables as a storage foundation, not working implementations of those features. Native process-level crashes are not universally recoverable through JNI error results. Logs deliberately exclude prompts, replies and credentials.
+See the [phone guide](user-guide.md), [VERIFY register](verify-status.md), and [detailed implementation limits](implementation-status.md). Native stack traces, real inference/performance and device acceptance remain the owner's next tests.

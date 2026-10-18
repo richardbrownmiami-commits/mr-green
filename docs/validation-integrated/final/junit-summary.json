@@ -1,0 +1,12 @@
+{
+  "tests": 161,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 3,
+  "passed": 158,
+  "skipped_cases": [
+    "im.mrgreen.data.GreenStoreTest.cacheExpiresCapsTtlAndBoundsEntries",
+    "im.mrgreen.data.GreenStoreTest.v1UpgradePreservesUserDataFtsAndExistingCloudRows",
+    "im.mrgreen.data.GreenStoreTest.auditRejectsP2AndUnlistedCategory"
+  ]
+}
