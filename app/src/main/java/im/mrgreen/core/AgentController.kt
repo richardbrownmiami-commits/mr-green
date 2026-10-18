@@ -5,6 +5,10 @@ import android.content.Context
 import android.os.Build
 import android.os.Debug
 import android.os.PowerManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import im.mrgreen.gateway.*
 import im.mrgreen.GreenApp
 import im.mrgreen.engine.ChatTurn
 import im.mrgreen.engine.EngineStats
@@ -25,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 // A single queue owns all native context access. cancel() is the sole out-of-band signal.
 data class AgentState(
+    val mode: String = "Local",
     val busy: Boolean = false,
     val generating: Boolean = false,
     val status: String = "No model loaded",
@@ -45,10 +50,71 @@ object AgentController {
     private lateinit var app: GreenApp
     private val engine by lazy { LlamaEngine() }
     @Volatile private var lastUse = System.currentTimeMillis()
+    private val cancelled = AtomicBoolean(false)
+    private val warmQueued = AtomicBoolean(false)
+    @Volatile private var allowPrewarm = true
+    val gateway by lazy {
+        GatewayClient(app, audit = { provider, dataClass, category, bytes ->
+            app.store.auditCloudSend(provider, dataClass, category, bytes)
+        }, cacheRead = { app.store.cachedCloudReply(it) }, cacheWrite = { key, reply ->
+            app.store.cacheCloudReply(key, reply)
+        })
+    }
+
+    /** Query the validated default network, not merely Wi-Fi association. */
+    fun hasValidatedNetwork(): Boolean = if (!initialized.get()) false else try {
+        val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    } catch (_: Exception) { false }
+
+    private fun watchConnectivity() {
+        val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        try {
+            cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onLost(network: Network) { if (!hasValidatedNetwork()) requestPrewarm() }
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    if (!hasValidatedNetwork()) requestPrewarm()
+                }
+            })
+        } catch (_: Exception) { app.logger.write("WARN", "GATEWAY", "Network monitoring unavailable; requests still check connectivity") }
+    }
+
+    private fun requestPrewarm() {
+        mutable.update { if (!it.busy) it.copy(mode = "Local", status = "Offline · local mode") else it }
+        if (!allowPrewarm || !warmQueued.compareAndSet(false, true)) return
+        maintenance {
+            try { if (allowPrewarm && !hasValidatedNetwork() && mutable.value.stats.loadedModel == null) ensureLocalReady() }
+            finally { warmQueued.set(false) }
+        }
+    }
+
+    /** Runs only on the same queue as inference; never constructs another native engine. */
+    private suspend fun ensureLocalReady(): Boolean {
+        if (mutable.value.stats.loadedModel != null) return true
+        val prefs = app.getSharedPreferences("local_model", Context.MODE_PRIVATE)
+        val path = prefs.getString("path", null) ?: return false
+        val file = File(path)
+        if (!file.isFile || !RuntimePolicy.validModel(file.name, file.length())) return false
+        val info = ActivityManager.MemoryInfo()
+        (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
+        if (info.availMem < 250L * 1024 * 1024) return false
+        val params = LoadParams(nCtx = RuntimePolicy.contextSize(prefs.getInt("context", 512), info.availMem),
+            nBatch = prefs.getInt("batch",128), nUbatch = prefs.getInt("ubatch",64), threads = prefs.getInt("threads",2))
+        mutable.update { it.copy(mode = "Local", status = "Loading local fallback…") }
+        var ok = false
+        withWakeLock { ok = engine.load(file.absolutePath, params).ok }
+        if (ok) { lastUse = System.currentTimeMillis(); publishStats("Local ready") }
+        else publishStats("Local fallback could not load")
+        app.logger.write(if (ok) "INFO" else "WARN", "GATEWAY", "Local pre-warm completed=$ok")
+        return ok
+    }
 
     fun initialize(application: GreenApp) {
         if (!initialized.compareAndSet(false, true)) return
         app = application
+        watchConnectivity()
         scope.launch {
             try {
                 app.store.writableDatabase
@@ -104,11 +170,15 @@ object AgentController {
             fail("Too little available RAM to load safely. Close other apps first.", ErrorCode.E_OOM_TRIM)
             return@enqueue
         }
-        mutable.update { it.copy(status = if(nCtx < params.nCtx) "Low RAM: loading with context $nCtx" else "Loading model…", streaming = "") }
+        mutable.update { it.copy(mode = "Local", status = if(nCtx < params.nCtx) "Low RAM: loading with context $nCtx" else "Loading model…", streaming = "") }
         withWakeLock {
             val result = engine.load(file.absolutePath, params.copy(nCtx = nCtx))
             if (result.ok) {
                 lastUse = System.currentTimeMillis()
+                allowPrewarm = true
+                app.getSharedPreferences("local_model", Context.MODE_PRIVATE).edit()
+                    .putString("path", file.absolutePath).putInt("context", nCtx)
+                    .putInt("batch", params.nBatch).putInt("ubatch", params.nUbatch).putInt("threads", params.threads).apply()
                 publishStats(if(nCtx < params.nCtx) "Local ready · reduced context $nCtx" else "Local ready")
                 app.logger.write("INFO", "LLM", "Model loaded; context=$nCtx threads=${params.threads}; device performance unverified")
                 app.logger.write("INFO", "LLM", "Device=${Build.MANUFACTURER}/${Build.MODEL}; sdk=${Build.VERSION.SDK_INT}; supported_32bit=${Build.SUPPORTED_32_BIT_ABIS.joinToString()}; batch=${params.nBatch}; ubatch=${params.nUbatch}; gguf_bytes=${file.length()}; native=ARMv7-NEON-O3-CPU")
@@ -120,15 +190,20 @@ object AgentController {
         val text = prompt.trim()
         if (text.isEmpty()) return
         enqueue(context) {
-            if (mutable.value.stats.loadedModel == null) {
-                fail("Import and load a GGUF model on the Llama screen first. Nothing was sent online.", ErrorCode.E_LLM_UNAVAILABLE)
-                return@enqueue
-            }
+            cancelled.set(false)
             if (text.length > 12_000) {
                 fail("Message is too long for the small local context. Please shorten it.", ErrorCode.E_LLM_CONTEXT)
                 return@enqueue
             }
             val runId = UUID.randomUUID().toString()
+            if (tryCloud(text, runId)) return@enqueue
+            if (cancelled.get()) return@enqueue
+            mutable.update { it.copy(mode = "Local", streaming = "", generating = false) }
+            if (!ensureLocalReady()) {
+                fail("Local fallback unavailable. Import and load a GGUF model on the Models screen. Your data is unchanged.", ErrorCode.E_LLM_UNAVAILABLE)
+                return@enqueue
+            }
+            if (cancelled.get()) return@enqueue
             val turns = app.store.messages().filter { it.role == "user" || it.role == "assistant" }.takeLast(20)
                 .map { ChatTurn(it.role,it.content) }.toMutableList()
             turns.add(ChatTurn("user",text))
@@ -202,7 +277,62 @@ object AgentController {
         }
     }
 
+    /** Only this explicit question is cloud-eligible. Old unclassified history stays local. */
+    private fun tryCloud(text: String, runId: String): Boolean {
+        if (!hasValidatedNetwork() || !gateway.settings.enabled) return false
+        mutable.update { it.copy(mode = "Cloud", status = "Thinking in cloud…", generating = true, streaming = "") }
+        val started = System.nanoTime()
+        val buffer = StringBuilder()
+        var lastPublish = 0L
+        val result = gateway.tryChat(GatewayRequest(
+            turns = listOf(ChatTurn("system", "You are Mr Green, a concise, honest assistant. No tools are connected. Never claim device actions or invent device state, memory, time or computed facts."), ChatTurn("user", text)),
+            category = "chat", privacyClass = PrivacyClass.P1, userInitiated = true
+        )) { token ->
+            if (!cancelled.get()) {
+                buffer.append(token)
+                val now = System.currentTimeMillis()
+                if (now - lastPublish >= 50) {
+                    mutable.update { it.copy(streaming = buffer.toString()) }
+                    lastPublish = now
+                }
+            }
+        }
+        if (cancelled.get() || result?.cancelled == true || !gateway.settings.enabled) {
+            mutable.update { it.copy(streaming = "", status = "Generation cancelled", refresh = System.currentTimeMillis()) }
+            app.logger.write("INFO", "GATEWAY", "Cloud request cancelled", planId = runId)
+            return true
+        }
+        if (result != null) {
+            app.store.addMessage("user", text)
+            app.store.addMessage("assistant", result.text)
+            mutable.update { it.copy(mode = "Cloud", streaming = "", status = if(result.fromCache) "Cloud reply · cached" else "Cloud ready", refresh = System.currentTimeMillis()) }
+            app.logger.write("INFO", "GATEWAY", "Provider=groq; completed=true; cached=${result.fromCache}; duration_ms=${(System.nanoTime()-started)/1_000_000}; output_chars=${result.text.length}", planId = runId)
+            return true
+        }
+        // Discard partial cloud output; the local reply starts cleanly and is stored only once.
+        mutable.update { it.copy(mode = "Local", streaming = "", status = "Cloud unavailable · switching to local…", refresh = System.currentTimeMillis()) }
+        val reason = gateway.lastReason ?: "UNAVAILABLE"
+        val code = when {
+            reason == "HTTP_429" || reason == "CIRCUIT_OPEN" -> ErrorCode.E_GROQ_429
+            reason.contains("P2") || reason.contains("SENSITIVE") || reason.contains("CATEGORY") || reason.contains("LOCAL_ONLY") || reason.contains("REQUIRES_USER") -> ErrorCode.E_GATEWAY_PRIVACY
+            reason.contains("TIMEOUT") -> ErrorCode.E_LLM_TIMEOUT
+            reason.contains("NETWORK") -> ErrorCode.E_GATEWAY_NETWORK
+            else -> ErrorCode.E_GATEWAY_FALLBACK
+        }
+        app.logger.write("WARN", "GATEWAY", "Provider=groq; fallback=local; reason=$reason; duration_ms=${(System.nanoTime()-started)/1_000_000}", code, planId = runId)
+        return false
+    }
+
+    fun cloudDisabled() {
+        if (!initialized.get()) return
+        gateway.cancel()
+        mutable.update { it.copy(mode = "Local", status = if (it.busy) it.status else "Cloud disabled · local mode") }
+    }
+
     fun unload(context: Context) {
+        allowPrewarm = false
+        if (initialized.get()) gateway.cancel()
+        cancelled.set(true)
         if (requested.get()) {
             engine.cancel()
             maintenance {
@@ -214,9 +344,12 @@ object AgentController {
         }
         enqueue(context) { engine.unload(); publishStats("No model loaded"); app.logger.write("INFO", "LLM", "Local model unloaded") }
     }
-    fun cancel() { if (initialized.get()) { engine.cancel(); mutable.update { it.copy(status = "Stopping…") } } }
+    fun cancel() { if (initialized.get()) { cancelled.set(true); gateway.cancel(); engine.cancel(); mutable.update { it.copy(status = "Stopping…") } } }
     fun releaseForServiceStop() {
         if (!initialized.get()) return
+        cancelled.set(true)
+        allowPrewarm = false
+        gateway.cancel()
         engine.cancel()
         maintenance {
             engine.unload()
@@ -225,7 +358,10 @@ object AgentController {
     }
     fun trimMemory() {
         if (!initialized.get()) return
+        allowPrewarm = false
         if (mutable.value.stats.loadedModel == null && !requested.get()) return
+        cancelled.set(true)
+        gateway.cancel()
         engine.cancel()
         maintenance {
             app.logger.write("WARN", "SYS", "Android requested memory trim", ErrorCode.E_OOM_TRIM)

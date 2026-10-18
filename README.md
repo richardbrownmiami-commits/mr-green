@@ -1,8 +1,15 @@
 # Mr Green
 
-An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit ARMv7). This is the **Phase 1 skeleton**, not the finished multi-phase product. SkillBot is not part of this repository.
+An offline-first Android assistant for the owner's Redmi 9 (Android 11, 32-bit ARMv7). This is the **Phase 1 skeleton plus Phase 2 AI Gateway**, not the finished multi-phase product. SkillBot is not part of this repository.
 
 The owner authorized building before Phase 0 device verification and will check the app on the phone. **Neither Phase 0 nor the Phase 1 offline-chat/frame-rate gate is claimed as passed.** See [Phase 1 status](docs/phase1-status.md), [build results](docs/test-report.md) and the supplied [plan](docs/plan.md).
+
+## 0.2.0 AI Gateway (Phase 2)
+The owner asked to skip the optional 55 fps visual measurement and proceed with **Phase 2 only**. It remains unmeasured, not passed. The same `im.mrgreen` app now adds Groq-first text chat with local fallback, encrypted user-pasted credentials, runtime model discovery, redaction and P2 blocking, quota/backoff handling, metadata-only cloud audit, Cloud/Local badge and connectivity-loss pre-warm. Cloud starts **off**; offline inference remains available without an account or key. No SkillBot code is involved.
+
+Open **Overview → AI Gateway / Cloud**, paste your own key there, enable cloud and discover models, then choose fast and smart models. Do not put keys in source, Gradle properties or issue reports. Only the current explicit chat question is cloud-eligible; previous unclassified chat history remains local. Sensitive provenance is always local and each personal-data category has a Local only switch. Later-phase actions, screen capture, Doctor and plugins are not implemented by this increment.
+
+See [Phase 2 status and phone checklist](docs/phase2-status.md). Build-computer checks are not Redmi evidence: **A22 and A23 remain pending on the actual phone**. Do not uninstall or clear app data to bypass a signing mismatch. A source backup was made before editing; the app database upgrade is additive.
 
 ## 0.1.3 ARMv7 inference fix
 
@@ -22,13 +29,13 @@ This update fixes zero-token JNI batches, preserves native failure details in di
 
 - Kotlin and Views/Material UI: Chat, Overview, Models, Diagnostics, Library and permission onboarding.
 - Original faceted purple sentinel SVG/launcher identity with reduced-motion support.
-- Actual CPU-only llama.cpp JNI, streaming local responses and cancellation; no fake AI replies or cloud requests.
+- Actual CPU-only llama.cpp JNI, streaming local responses and cancellation; Phase 2 adds optional cloud requests behind the gateway.
 - Model import through the system picker; app-private model storage, one model at a time.
 - Serialized engine queue, low-RAM context reduction, trim handling and idle unloading.
 - App-private bundled SQLite with FTS5 schema, persisted chat and identity, metadata logs and a last-crash report.
 - User-visible foreground service, active-task wake lock and Stop action.
 
-Groq, action tools, plugin execution, learning/Doctor, voice, overlay, accessibility automation and document RAG are later phases. Their settings are not presented as completed capabilities. No API key is required for Phase 1.
+Action tools, plugin execution, learning/Doctor, voice, overlay, accessibility automation and document RAG remain later phases. Their settings are not presented as completed capabilities. No API key is required for local offline operation.
 
 ## Build
 

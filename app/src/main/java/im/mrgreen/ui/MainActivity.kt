@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var host: FrameLayout
     private lateinit var body: LinearLayout
     private lateinit var orb: OrbView
+    private var modeBadge: TextView? = null
     private lateinit var transcript: LinearLayout
     private lateinit var entry: TextInputEditText
     private lateinit var sendButton: MaterialButton
@@ -75,6 +76,7 @@ class MainActivity : AppCompatActivity() {
                 AgentController.state.collect { state ->
                     if (::orb.isInitialized) { orb.mode = when { state.error != null -> OrbView.Mode.ERROR; state.busy -> OrbView.Mode.THINKING; else -> OrbView.Mode.IDLE }; orb.invalidate() }
                     findViewById<TextView>(R.id.status_text)?.text = state.error ?: state.status
+                    modeBadge?.text = getString(if (state.mode == "Cloud") R.string.cloud_badge_cloud else R.string.cloud_badge_local, state.error ?: state.status)
                     if (selected == R.id.tab_llama) engineStatus?.text = state.error ?: getString(R.string.engine_live, state.status, state.stats.promptTokPerSec, state.stats.genTokPerSec, state.stats.nCtx)
                     sendButtonIfShown(state.busy, state.generating)
                     if (state.streaming.isNotEmpty()) updateStream(state.streaming)
@@ -83,8 +85,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    override fun onStart() { super.onStart(); (application as GreenApp).logger.foreground = true; if (selected == R.id.tab_chat) refreshTranscript() }
-    override fun onStop() { (application as GreenApp).logger.foreground = false; super.onStop() }
+    override fun onStart() { super.onStart(); (application as? GreenApp)?.logger?.foreground = true; if (selected == R.id.tab_chat) refreshTranscript() }
+    override fun onStop() { (application as? GreenApp)?.logger?.foreground = false; super.onStop() }
 
     private fun buildShell() {
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
@@ -128,7 +130,8 @@ class MainActivity : AppCompatActivity() {
     private fun showChat() {
         start(getString(R.string.app_name),getString(R.string.chat_subtitle))
         orb=OrbView(this).apply { contentDescription=getString(R.string.orb_description) }; heroView=orb; body.addView(orb,LinearLayout.LayoutParams(-1,dp(130)))
-        body.addView(TextView(this).apply { id=R.id.status_text; text=AgentController.state.value.error ?: AgentController.state.value.status; gravity=Gravity.CENTER; textSize=13f; setTextColor(mint) },LinearLayout.LayoutParams(-1,dp(28)))
+        modeBadge = TextView(this).apply { text=getString(if (AgentController.state.value.mode == "Cloud") R.string.cloud_badge_cloud else R.string.cloud_badge_local, AgentController.state.value.error ?: AgentController.state.value.status); gravity=Gravity.CENTER; textSize=13f; setTextColor(mint); isClickable=true; setOnClickListener { startActivity(Intent(this@MainActivity, CloudActivity::class.java)) } }; body.addView(modeBadge,LinearLayout.LayoutParams(-1,dp(48)))
+        body.addView(TextView(this).apply { id=R.id.status_text; text=AgentController.state.value.error ?: AgentController.state.value.status; visibility=View.GONE },LinearLayout.LayoutParams(-1,dp(1)))
         val scroll=ScrollView(this).apply { isFillViewport=true }; transcript=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(8)) }
         scroll.addView(transcript); body.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); refreshTranscript()
         val row=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; orientation=LinearLayout.HORIZONTAL; setPadding(0,dp(6),0,dp(8)) }
@@ -151,7 +154,7 @@ class MainActivity : AppCompatActivity() {
         if (!::transcript.isInitialized || selected!=R.id.tab_chat || !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
         transcriptJob?.cancel()
         transcriptJob = lifecycleScope.launch {
-            val rows=withContext(Dispatchers.IO){(application as GreenApp).store.messages()}
+            val rows=withContext(Dispatchers.IO){(application as? GreenApp)?.store?.messages().orEmpty()}
             if (!::transcript.isInitialized || selected!=R.id.tab_chat) return@launch
             transcript.removeAllViews(); displayedStream=""
             if(rows.isEmpty()) addBubble("assistant",getString(R.string.empty_chat)) else rows.forEach { addBubble(it.role,it.content) }
@@ -174,7 +177,8 @@ class MainActivity : AppCompatActivity() {
     }
     private fun showPanel() {
         start(getString(R.string.panel_title),getString(R.string.panel_subtitle))
-        card(getString(R.string.runtime_title),"${AgentController.state.value.status}\n${getString(R.string.local_only_notice)}")
+        card(getString(R.string.runtime_title),"${AgentController.state.value.status}\n${getString(if (application is GreenApp && AgentController.gateway.settings.enabled) R.string.cloud_overview_enabled else R.string.cloud_overview_disabled)}")
+        action(getString(R.string.cloud_open_gateway),getString(R.string.cloud_open_gateway)) { startActivity(Intent(this,CloudActivity::class.java)) }
         card(getString(R.string.permissions_title),getString(R.string.permission_panel_note))
         val preferences = getSharedPreferences("ui", MODE_PRIVATE)
         body.addView(androidx.appcompat.widget.SwitchCompat(this).apply {

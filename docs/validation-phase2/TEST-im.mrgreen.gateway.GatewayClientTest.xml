@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="im.mrgreen.gateway.GatewayClientTest" tests="19" skipped="0" failures="0" errors="0" timestamp="2026-10-18T13:09:57" hostname="b336462f34df" time="5.441">
+  <properties/>
+  <testcase name="jsonRetriesOnceStagesTokensAndNeverLeaksInvalidFragment" classname="im.mrgreen.gateway.GatewayClientTest" time="4.353"/>
+  <testcase name="failedJsonRetriesExactlyTwiceWithoutStreamingEitherAttempt" classname="im.mrgreen.gateway.GatewayClientTest" time="0.11"/>
+  <testcase name="backoffSurvivesClientRecreationWithoutPersistingCredentials" classname="im.mrgreen.gateway.GatewayClientTest" time="0.125"/>
+  <testcase name="networkFailureNeverLeaksExceptionOrServerBody" classname="im.mrgreen.gateway.GatewayClientTest" time="0.078"/>
+  <testcase name="offlineAndUnavailableKeyNeverSend" classname="im.mrgreen.gateway.GatewayClientTest" time="0.058"/>
+  <testcase name="resetDurationParsingIncludesFractionalSeconds" classname="im.mrgreen.gateway.GatewayClientTest" time="0.046"/>
+  <testcase name="trailingGarbageInJsonIsNotAcceptedOrStreamed" classname="im.mrgreen.gateway.GatewayClientTest" time="0.05"/>
+  <testcase name="blocksSensitiveAndUntrustedRequestsBeforeAnySend" classname="im.mrgreen.gateway.GatewayClientTest" time="0.057"/>
+  <testcase name="successUsesSelectedModelAndAuditsSerializedBytes" classname="im.mrgreen.gateway.GatewayClientTest" time="0.078"/>
+  <testcase name="cancellationReturnsCancelledInsteadOfFallback" classname="im.mrgreen.gateway.GatewayClientTest" time="0.049"/>
+  <testcase name="redactsContactsNotificationsUrlsAndPathsInEveryMessage" classname="im.mrgreen.gateway.GatewayClientTest" time="0.051"/>
+  <testcase name="secretsAreBlockedWithoutBlockingShoppingOrTyping" classname="im.mrgreen.gateway.GatewayClientTest" time="0.044"/>
+  <testcase name="cacheOnlyP0AndCacheHitStillAppliesPolicy" classname="im.mrgreen.gateway.GatewayClientTest" time="0.042"/>
+  <testcase name="lowQuotaDefersBackgroundButAllowsUserAndRetriesQueuedWork" classname="im.mrgreen.gateway.GatewayClientTest" time="0.061"/>
+  <testcase name="quota429IsPerModelAndRetryAfterPausesOnlyThatModel" classname="im.mrgreen.gateway.GatewayClientTest" time="0.059"/>
+  <testcase name="discoveryLocalOnlySwitchPreventsEvenModelListing" classname="im.mrgreen.gateway.GatewayClientTest" time="0.059"/>
+  <testcase name="zeroQuotaRecoversAfterReportedResetWithoutAppRestart" classname="im.mrgreen.gateway.GatewayClientTest" time="0.047"/>
+  <testcase name="modelDiscoveryRequiresValidatedNetworkAndKillSwitch" classname="im.mrgreen.gateway.GatewayClientTest" time="0.034"/>
+  <testcase name="auditFailurePreventsNetworkSend" classname="im.mrgreen.gateway.GatewayClientTest" time="0.032"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

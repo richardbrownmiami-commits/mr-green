@@ -4,12 +4,14 @@ import android.content.ContentValues
 import android.content.Context
 import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteOpenHelper
+import java.security.MessageDigest
 
 /** App-private, bundled SQLite. UI callers must use an IO dispatcher. */
 data class ChatMessage(val id: Long, val role: String, val content: String, val createdAt: Long)
 data class LogEntry(val timestamp: Long, val level: String, val component: String, val code: String?, val message: String)
+data class CloudSend(val provider: String, val dataClass: String, val category: String, val bytes: Int, val createdAt: Long)
 
-class GreenStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "mr-green.db", null, 1) {
+class GreenStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "mr-green.db", null, 2) {
     init { setWriteAheadLoggingEnabled(true) }
 
     override fun onConfigure(db: SQLiteDatabase) { db.setForeignKeyConstraintsEnabled(true) }
@@ -35,6 +37,7 @@ class GreenStore(context: Context) : SQLiteOpenHelper(context.applicationContext
         db.execSQL("CREATE TABLE self_manual (id TEXT PRIMARY KEY, component TEXT NOT NULL, text TEXT NOT NULL)")
         db.execSQL("CREATE TABLE notif_log (id INTEGER PRIMARY KEY, package TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL)")
         db.execSQL("CREATE TABLE cloud_log (id INTEGER PRIMARY KEY, provider TEXT NOT NULL, data_class TEXT NOT NULL, category TEXT NOT NULL, size_bytes INTEGER NOT NULL, created_at INTEGER NOT NULL)")
+        createCloudCache(db)
         db.execSQL("CREATE TABLE rag_docs (id INTEGER PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL, status TEXT NOT NULL)")
         db.execSQL("CREATE TABLE rag_chunks (id INTEGER PRIMARY KEY, doc_id INTEGER NOT NULL REFERENCES rag_docs(id) ON DELETE CASCADE, section TEXT NOT NULL, text TEXT NOT NULL)")
         db.execSQL("CREATE TABLE logs (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL, level TEXT NOT NULL, component TEXT NOT NULL, plan_id TEXT, step_id TEXT, app_state TEXT NOT NULL, code TEXT, message TEXT NOT NULL, stack_trace TEXT)")
@@ -59,8 +62,68 @@ class GreenStore(context: Context) : SQLiteOpenHelper(context.applicationContext
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Never destroy a user's memory to hide a migration gap.
-        error("No migration from $oldVersion to $newVersion")
+        // v1 already has cloud_log; retain all user data, FTS tables, and triggers.
+        if (oldVersion == 1 && newVersion == 2) {
+            createCloudCache(db)
+        } else {
+            error("No migration from $oldVersion to $newVersion")
+        }
+    }
+
+    private fun createCloudCache(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE cloud_cache (digest TEXT PRIMARY KEY NOT NULL, result TEXT NOT NULL, expires INTEGER NOT NULL)")
+        db.execSQL("CREATE INDEX cloud_cache_expires ON cloud_cache(expires)")
+    }
+
+    /** Store metadata only; never pass prompts or payloads to this audit API. */
+    fun auditCloudSend(provider: String, dataClass: String, category: String, bytes: Int) {
+        require(dataClass == "P0" || dataClass == "P1") { "Only P0/P1 data may be sent" }
+        require(category in CLOUD_CATEGORIES) { "Unsupported cloud category" }
+        require(bytes >= 0)
+        val safeProvider = provider.trim().take(80)
+        require(safeProvider.isNotEmpty() && safeProvider.all { it.isLetterOrDigit() || it in ".-_" })
+        writableDatabase.insertOrThrow("cloud_log", null, ContentValues().apply {
+            put("provider", safeProvider); put("data_class", dataClass); put("category", category)
+            put("size_bytes", bytes); put("created_at", System.currentTimeMillis())
+        })
+        writableDatabase.execSQL("DELETE FROM cloud_log WHERE id NOT IN (SELECT id FROM cloud_log ORDER BY created_at DESC,id DESC LIMIT 200)")
+    }
+
+    fun cloudSends(): List<CloudSend> = readableDatabase.rawQuery(
+        "SELECT provider,data_class,category,size_bytes,created_at FROM cloud_log ORDER BY created_at DESC,id DESC LIMIT 200", null
+    ).use { c -> buildList { while (c.moveToNext()) add(CloudSend(c.getString(0), c.getString(1), c.getString(2), c.getInt(3), c.getLong(4))) } }
+
+    /** Cache by a one-way digest; raw keys/prompts are never persisted. */
+    fun cachedCloudReply(key: String): String? {
+        val db = writableDatabase
+        db.execSQL("DELETE FROM cloud_cache WHERE expires <= ?", arrayOf(System.currentTimeMillis()))
+        return db.rawQuery("SELECT result FROM cloud_cache WHERE digest=? AND expires>?", arrayOf(cacheDigest(key), System.currentTimeMillis().toString())).use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }
+    }
+
+    fun cacheCloudReply(key: String, reply: String, ttl: Long = MAX_CACHE_TTL_MS) {
+        require(key.isNotEmpty())
+        val now = System.currentTimeMillis()
+        val expires = now + ttl.coerceIn(1L, MAX_CACHE_TTL_MS)
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL("DELETE FROM cloud_cache WHERE expires <= ?", arrayOf(now))
+            db.insertWithOnConflict("cloud_cache", null, ContentValues().apply {
+                put("digest", cacheDigest(key)); put("result", reply); put("expires", expires)
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+            db.execSQL("DELETE FROM cloud_cache WHERE digest NOT IN (SELECT digest FROM cloud_cache ORDER BY expires DESC LIMIT 30)")
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    private fun cacheDigest(key: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(key.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+
+    companion object {
+        private const val MAX_CACHE_TTL_MS = 5 * 60 * 1000L
+        private val CLOUD_CATEGORIES = setOf("chat", "context", "facts", "notes", "screen", "rag", "models", "technical", "planner", "doctor", "plugins", "packs", "summary")
     }
 
     fun identityName(): String = readableDatabase.rawQuery("SELECT name FROM identity WHERE id=1", null).use { c -> if (c.moveToFirst()) c.getString(0) else "Mr Green" }

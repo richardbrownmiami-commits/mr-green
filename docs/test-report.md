@@ -1,6 +1,32 @@
 # Build and owner checks
 
-This increment is Phase 1 only. The owner explicitly authorized proceeding before the real-phone Phase 0 gate and will check the Redmi 9. **No acceptance test below has been run on that phone.** Compiling an APK does not prove offline inference, memory, FPS, permissions or MIUI behavior.
+The current increment is **Phase 2 only: AI Gateway**, in the existing `im.mrgreen` app. The optional 55 fps Redmi visual measurement was explicitly left **unmeasured/skipped**, not passed. **No A22/A23 acceptance gate has been run on the Redmi.** Host tests are not phone tests.
+
+## Phase 2 host results
+
+| Check | Result |
+|---|---|
+| Debug APK and unsigned release APK | PASS — final source builds both variants, version `0.2.0-ai-gateway`, versionCode 5. |
+| Host unit tests | 48 passed, 0 failures/errors; 3 Android/requery runtime tests explicitly skipped on the Linux JVM (51 discovered). |
+| Production SQL schema checks | 3 passed: additive v1→v2 migration statements, preserved messages/facts/FTS/audit, metadata-only log and bounded TTL cache. This is host SQLite, not Android/requery migration proof. |
+| Gateway fake-transport and redaction tests | PASS — policy/no-send, sensitive provenance, redaction, attempted-send auditing, per-model persisted backoff/reset recovery, deferred background work, JSON retry/staging, cancellation, cache and discovery. No live Groq request/key was used. |
+| Startup/navigation | PASS in Robolectric API 26 and 30, including the same-app Cloud settings badge. Not an Android phone test. |
+| Native flags and APK ABI | PASS — 76 ARMv7 Android translation units at effective `-O3`; both APKs contain only three ELF32 ARM libraries under `lib/armeabi-v7a/`. |
+| Package | PASS — `im.mrgreen`, minSdk 26, targetSdk 30, armeabi-v7a only. |
+| Debug signing | Valid v2 development signature, **different from the earlier recorded APK certificate**. Not a verified in-place update. |
+| APK secret-shaped-value check | No Groq-key-shaped value, fake test credential, signing keystore or GGUF packaged. This is not proof of live phone log behavior with a configured key. |
+| Lint | Completed with 0 errors and 38 warnings, including existing deprecations/localization warnings. |
+| Redmi, live Keystore/Groq, actual migration/failover/privacy | NOT RUN; owner/device pending. |
+
+Evidence: [final Gradle validation](validation-phase2/final-validation.txt), [host tests and APK audit](validation-phase2/apk-and-tests.txt), [SQL checks](validation-phase2/storage-sql.txt), [native flags](validation-phase2/native-flags.txt), [ABI audit](validation-phase2/apk-abi.txt), [package](validation-phase2/package-badging.txt), [development signature](validation-phase2/debug-signature.txt), and [lint warnings](validation-phase2/lint-results-debug.txt). Test XML is retained beside these files.
+
+**Installation safety:** the earlier recorded certificate SHA-256 begins `2789187d`; this sandbox's debug certificate begins `7bc216c1`. If the installed app uses the earlier key, this debug APK cannot update it. Do not uninstall, clear data or re-sign an APK to work around that mismatch. The unsigned release APK must be signed with the original owner's key for a data-preserving update. No phone install/data operation was performed. The original source was bundled before edits; Git history is preserved.
+
+See [Phase 2 behavior and pending Redmi checklist](phase2-status.md).
+
+## Earlier Phase 1 build history
+
+The following build results are historical, not the current Phase 2 test totals.
 
 ## Build-only results
 
@@ -24,7 +50,7 @@ The native engine uses the model's embedded template, an empty thinking prefix f
 | Check | Status | Why |
 |---|---|---|
 | Phase 1: offline chat works | OWNER PENDING | Requires model loading and a real answer on Redmi 9. |
-| Phase 1: UI at least 55 fps | OWNER PENDING | Requires on-device frame measurements. |
+| Phase 1: optional 55 fps visual measurement | SKIPPED / UNMEASURED | Explicit owner instruction; no pass claimed. |
 | A1–A5: deterministic tools, alarms, notes, compound actions | NOT IMPLEMENTED | Phase 3. |
 | A6–A7: media, notification and missed-call rules | NOT IMPLEMENTED | Phase 4. |
 | A8–A9: AI planner and approved learning | NOT IMPLEMENTED | Phase 6. |
@@ -32,8 +58,8 @@ The native engine uses the model's embedded template, an empty thinking prefix f
 | A12: app accessibility recipes | NOT IMPLEMENTED | Phase 9. |
 | A13: five-day stability and memory | NOT RUN | Owner's long-duration device check. |
 | A14–A21: Doctor and maintenance | NOT IMPLEMENTED | Phase 6. |
-| A22: Groq/local gateway failover | NOT IMPLEMENTED | Phase 2; Phase 1 is local-only. |
-| A23: cloud redaction | NOT IMPLEMENTED | Phase 2; Phase 1 sends no cloud calls. |
+| A22: Groq/local gateway failover | IMPLEMENTED / REDMI PENDING | Host fake-transport checks pass; live online/airplane/429 flow needs the phone. |
+| A23: cloud redaction | IMPLEMENTED / REDMI PENDING | Synthetic host policy/redaction checks pass; real device send/log/audit checks remain. |
 | A24: Understanding Library | NOT IMPLEMENTED | Phase 3. |
 | A25–A26: packs and sandboxed scripts | NOT IMPLEMENTED | Phase 7. |
 | A27–A28: companion APK and engine patch | NOT IMPLEMENTED | Phase 10. |
@@ -51,9 +77,9 @@ The native engine uses the model's embedded template, an empty thinking prefix f
 | Thread counts, speed, RAM, storage location | OWNER PENDING. Four threads is a starting setting, not a measured winner. |
 | FTS5 on the phone | Bundled SQLite selected instead of trusting MIUI system SQLite. Runtime initialization OWNER PENDING. |
 | QuickJS ARMv7 build and sandbox | NOT IMPLEMENTED; later phase. |
-| Groq models, streaming, JSON and 429 fallback | NOT IMPLEMENTED; no key collected. |
+| Groq models, streaming, JSON and 429 fallback | Implemented and fake-transport tested; no live key/request or Redmi proof. |
 | MIUI overlay, screenshot, node-tree reading | NOT IMPLEMENTED / OWNER PENDING in Phase 5. |
-| Orb plus chat >=55 fps | OWNER PENDING. |
+| Optional Orb/chat 55 fps visual measurement | SKIPPED / UNMEASURED by owner. |
 | MX Player package names | NOT VERIFIED; Phase 4. |
 | Free no-key web sources | NOT VERIFIED; Phase 8. |
 | Gemini package and accessibility recipes | NOT VERIFIED; Phase 9. |

@@ -1,0 +1,14 @@
+PASS app-debug.apk: no Groq-key-shaped value, test credential, keystore or model packaged
+SHA256 56f53f84f7c85c0b7b92ebce9b57f81df62bb3d597dc33dd54d47f97fa6c39a0 bytes 10741751
+PASS app-release-unsigned.apk: no Groq-key-shaped value, test credential, keystore or model packaged
+SHA256 e0d56cfe72940ea0b723840ae9dee4f4a91f3d3c47660b0288b69de42ed47201 bytes 8061952
+im.mrgreen.core.RuntimePolicyTest {'tests': 4, 'failures': 0, 'errors': 0, 'skipped': 0}
+im.mrgreen.data.GreenStoreTest {'tests': 3, 'failures': 0, 'errors': 0, 'skipped': 3}
+im.mrgreen.engine.GenerationProgressTest {'tests': 2, 'failures': 0, 'errors': 0, 'skipped': 0}
+im.mrgreen.engine.LlamaEngineTest {'tests': 4, 'failures': 0, 'errors': 0, 'skipped': 0}
+im.mrgreen.gateway.GatewayClientTest {'tests': 19, 'failures': 0, 'errors': 0, 'skipped': 0}
+im.mrgreen.gateway.GatewayRedactorTest {'tests': 3, 'failures': 0, 'errors': 0, 'skipped': 0}
+im.mrgreen.ui.ComposerActionTest {'tests': 4, 'failures': 0, 'errors': 0, 'skipped': 0}
+im.mrgreen.ui.StartupTest {'tests': 12, 'failures': 0, 'errors': 0, 'skipped': 0}
+HOST TEST TOTALS {'tests': 51, 'failures': 0, 'errors': 0, 'skipped': 3} passed 48
+NOT PHONE EVIDENCE: A22/A23, live Keystore/Redmi migration, live Groq and FPS remain pending/skipped as documented.

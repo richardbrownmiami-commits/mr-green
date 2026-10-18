@@ -41,6 +41,26 @@ class StartupTest {
         controller.destroy()
     }
 
+    @Test fun modeBadgeOpensCloudSettingsInTheSameApp() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.get().getPreferences(0).edit().putBoolean("onboarding_seen", true).commit()
+        controller.create()
+        fun findBadge(view: View): android.widget.TextView? {
+            if (view is android.widget.TextView && view.text.toString().startsWith("LOCAL")) return view
+            if (view is android.view.ViewGroup) for (index in 0 until view.childCount) {
+                findBadge(view.getChildAt(index))?.let { return it }
+            }
+            return null
+        }
+        val activity = controller.get()
+        val badge = findBadge(activity.window.decorView)
+        assertNotNull(badge)
+        assertTrue(badge!!.performClick())
+        assertEquals(CloudActivity::class.java.name,
+            org.robolectric.Shadows.shadowOf(activity).nextStartedActivity.component?.className)
+        controller.destroy()
+    }
+
     @Test fun navigationThemeProvidesAColorResourceNotALiteral() {
         val context = android.view.ContextThemeWrapper(RuntimeEnvironment.getApplication(), im.mrgreen.R.style.AppTheme)
         val value = TypedValue()

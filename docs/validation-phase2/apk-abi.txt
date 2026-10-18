@@ -1,0 +1,8 @@
+PASS app/build/outputs/apk/debug/app-debug.apk: armeabi-v7a only (3 libraries)
+  lib/armeabi-v7a/libc++_shared.so
+  lib/armeabi-v7a/libmrgreen.so
+  lib/armeabi-v7a/libsqlite3x.so
+PASS app/build/outputs/apk/release/app-release-unsigned.apk: armeabi-v7a only (3 libraries)
+  lib/armeabi-v7a/libc++_shared.so
+  lib/armeabi-v7a/libmrgreen.so
+  lib/armeabi-v7a/libsqlite3x.so

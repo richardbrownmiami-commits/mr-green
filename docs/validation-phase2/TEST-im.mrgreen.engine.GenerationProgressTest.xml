@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="im.mrgreen.engine.GenerationProgressTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-18T13:09:57" hostname="b336462f34df" time="0.019">
+  <properties/>
+  <testcase name="startupAndTimeoutAreExplicit" classname="im.mrgreen.engine.GenerationProgressTest" time="0.005"/>
+  <testcase name="promptProgressIsDistinctFromGeneration" classname="im.mrgreen.engine.GenerationProgressTest" time="0.014"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

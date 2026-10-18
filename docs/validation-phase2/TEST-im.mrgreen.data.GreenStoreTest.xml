@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="im.mrgreen.data.GreenStoreTest" tests="3" skipped="3" failures="0" errors="0" timestamp="2026-10-18T13:09:57" hostname="b336462f34df" time="0.001">
+  <properties/>
+  <testcase name="cacheExpiresCapsTtlAndBoundsEntries" classname="im.mrgreen.data.GreenStoreTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <testcase name="v1UpgradePreservesUserDataFtsAndExistingCloudRows" classname="im.mrgreen.data.GreenStoreTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <testcase name="auditRejectsP2AndUnlistedCategory" classname="im.mrgreen.data.GreenStoreTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
