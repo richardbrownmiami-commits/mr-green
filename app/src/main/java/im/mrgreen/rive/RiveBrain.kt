@@ -8,14 +8,13 @@ import java.io.File
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
-import java.text.Normalizer
 import java.util.Locale
 
 /** Text-only RiveScript: no regex triggers, tags, objects, scripts, redirects or actions. */
 data class PreparedRules internal constructor(val text: String, val count: Int)
 data class RuleStatus(val imported: Int, val learned: Int, val warning: String?)
 data class LearnedRule(val trigger: String, val answer: String)
-data class RuleReply(val text: String, val learned: Boolean)
+data class RuleReply(val text: String, val learned: Boolean, val typoCorrected: Boolean = false)
 
 class RiveBrain(directory: File) {
     companion object {
@@ -25,19 +24,15 @@ class RiveBrain(directory: File) {
         private const val HEADER = "! version = 2.0\n\n"
         private val triggerPattern = Regex("[\\p{L}\\p{M}\\p{N}]+(?: [\\p{L}\\p{M}\\p{N}]+)*")
 
-        /** Only trailing sentence punctuation is ignored; arithmetic/operators are never stripped. */
-        fun normalizeQuestion(question: String): String? {
-            val value = Normalizer.normalize(question, Normalizer.Form.NFKC).trim()
-                .lowercase(Locale.ROOT).trimEnd('.', '!', '?').trim().replace(Regex("\\s+"), " ")
-            return value.takeIf { it.length in 1..256 && triggerPattern.matches(it) }
-        }
+        fun normalizeQuestion(question: String): String? = QuestionMatcher.normalize(question)
         private fun safeAnswer(answer: String): Boolean = answer.isNotBlank() && answer.length <= 4096 &&
             !answer.contains("*/") && !answer.contains(" // ") &&
             answer.none { it in "<>{}\\" || (it.isISOControl() && it != '\n' && it != '\t') }
     }
 
     private val storage = AtomicFile(File(directory, "rules.rive"))
-    private data class Snapshot(val imported: Map<String, String>, val learned: Map<String, String>, val engine: RiveScript)
+    private data class Snapshot(val imported: Map<String, String>, val learned: Map<String, String>,
+                                val engine: RiveScript, val matcher: QuestionMatcher)
     private var snapshot = compile(emptyMap(), emptyMap())
     private var warning: String? = null
     private var revision = 0L
@@ -83,12 +78,11 @@ class RiveBrain(directory: File) {
     }
 
     @Synchronized fun reply(question: String): RuleReply? {
-        val trigger = normalizeQuestion(question) ?: return null
         val current = snapshot
-        if (trigger !in current.imported && trigger !in current.learned) return null
+        val match = current.matcher.match(question) ?: return null
         // No interpreter is mutated while another reply or swap runs. There are no executable tags.
-        val reply = current.engine.reply("owner", trigger)
-        return RuleReply(reply, trigger !in current.imported)
+        val reply = current.engine.reply("owner", match.trigger)
+        return RuleReply(reply, match.trigger !in current.imported, match.typoCorrected)
     }
 
     /** Caller must gate this on explicit learning consent and successful, non-truncated local generation. */
@@ -97,7 +91,7 @@ class RiveBrain(directory: File) {
         if (!completed || cancelled || expectedRevision != revision) return false
         val trigger = normalizeQuestion(question) ?: return false
         val literal = answer.trim().replace("\r\n", "\n")
-        if (!safeAnswer(literal) || trigger in snapshot.imported || trigger in snapshot.learned) return false
+        if (!safeAnswer(literal) || snapshot.matcher.hasEquivalent(trigger)) return false
         if (snapshot.imported.size + snapshot.learned.size >= MAX_RULES) return false
         commit(compile(snapshot.imported, snapshot.learned + (trigger to literal)))
         return true
@@ -134,7 +128,7 @@ class RiveBrain(directory: File) {
         // No object handler, subroutine, host tool, network or filesystem capability is registered.
         engine.stream(HEADER + serialize(learned + imported))
         engine.sortReplies()
-        return Snapshot(imported.toMap(), learned.toMap(), engine)
+        return Snapshot(imported.toMap(), learned.toMap(), engine, QuestionMatcher((learned + imported).keys))
     }
 
     private fun serialize(rules: Map<String, String>): String = rules.entries.joinToString("") {
@@ -153,8 +147,10 @@ class RiveBrain(directory: File) {
             if (line.startsWith("+ ")) {
                 if (pending != null) invalid("previous trigger has no reply")
                 val trigger = line.substring(2).trim()
-                if (trigger.length !in 1..256 || !triggerPattern.matches(trigger) || trigger != trigger.lowercase(Locale.ROOT) ||
-                    normalizeQuestion(trigger) != trigger) invalid("use a literal lowercase trigger; patterns and tags are not supported")
+                // Validate the original on-disk grammar, not the newer lookup normalizer.
+                // Legacy keys such as 'cannot' must load/export unchanged after an upgrade.
+                if (trigger.length !in 1..256 || !triggerPattern.matches(trigger) || trigger != trigger.lowercase(Locale.ROOT))
+                    invalid("use a literal lowercase trigger; patterns and tags are not supported")
                 if (trigger in rules) invalid("duplicate trigger")
                 pending = trigger
             } else if (line.startsWith("- ")) {

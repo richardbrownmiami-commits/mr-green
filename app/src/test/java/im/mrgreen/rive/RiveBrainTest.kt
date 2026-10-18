@@ -87,6 +87,87 @@ class RiveBrainTest {
         assertFalse(learn(brain, answer = "Different"))
         assertEquals("A small animal.", brain.reply("what is a cat")!!.text)
     }
+    @Test fun punctuationContractionsAndOneApprovedTypoUseTheSameLiveRules() {
+        val brain = brain()
+        install(brain, "+ why can not i import the model\n- Check the model format.\n+ what is the capital of france\n- Paris.\n+ hello how are you\n- Ready.\n")
+        assertEquals("Check the model format.", brain.reply("Why can’t I import the model?!")!!.text)
+        assertEquals("Ready.", brain.reply("“Hello, how are you?”")!!.text)
+        val corrected = brain.reply("What is the captial of France?")!!
+        assertEquals("Paris.", corrected.text)
+        assertTrue(corrected.typoCorrected)
+        assertFalse(corrected.learned)
+        assertFalse(brain.reply("what is the capital of france")!!.typoCorrected)
+        assertNull(brain.reply("what is the capitol of france"))
+        assertNull(brain.reply("why can i import the model"))
+    }
+    @Test fun contractionLearningIsCanonicalAndDoesNotDuplicateOldEquivalentKeys() {
+        val brain = brain()
+        assertTrue(learn(brain, "Why don’t you understand the question?", "Please explain it another way."))
+        assertEquals("Please explain it another way.", brain.reply("why do not you understand the question")!!.text)
+        assertTrue(brain.reply("Why don't you understand the question?")!!.learned)
+        assertEquals("why do not you understand the question", brain.learnedRules().single().trigger)
+        install(brain, "+ why cannot i import the model\n- Existing owner rule.\n")
+        assertFalse(learn(brain, "why can't i import the model", "Do not overwrite."))
+        assertEquals("Existing owner rule.", brain.reply("why can not i import the model")!!.text)
+    }
+    @Test fun legacyDataLoadsAndMatchesWithoutRewritingOrMigratingStoredKeys() {
+        val dir = temp.newFolder()
+        val file = File(dir, "rules.rive")
+        val original = "! version = 2.0\n\n+ why cannot i import the model\n- Owner answer.\n\n\n// MR_GREEN_LEARNED_REPLIES\n+ what is the capital of france\n- Paris.\n\n".toByteArray()
+        file.writeBytes(original)
+        val brain = RiveBrain(dir)
+        assertNull(brain.status().warning)
+        assertEquals(1, brain.status().imported)
+        assertEquals(1, brain.status().learned)
+        assertEquals("Owner answer.", brain.reply("Why can't I import the model?")!!.text)
+        assertTrue(brain.reply("What is the captial of France?")!!.learned)
+        brain.reload()
+        assertArrayEquals(original, file.readBytes())
+        assertTrue(brain.importedText().contains("+ why cannot i import the model"))
+        assertEquals("what is the capital of france", brain.learnedRules().single().trigger)
+    }
+    @Test fun legacyMisspelledKeysAreFoundWithoutChangingTheirStoredText() {
+        val dir = temp.newFolder()
+        val brain = RiveBrain(dir)
+        install(brain, "+ what is the captial of france\n- Existing answer.\n")
+        val before = File(dir, "rules.rive").readBytes()
+        val restarted = RiveBrain(dir)
+        assertEquals("Existing answer.", restarted.reply("What is the capital of France?")!!.text)
+        assertTrue(restarted.reply("What is the capital of France?")!!.typoCorrected)
+        assertTrue(restarted.importedText().contains("+ what is the captial of france"))
+        assertArrayEquals(before, File(dir, "rules.rive").readBytes())
+    }
+
+    @Test fun normalizedAliasCollisionsFallThroughWithoutLosingEitherStoredAnswer() {
+        val brain = brain()
+        install(brain, "+ why cannot i import the model\n- One answer.\n+ why can not i import the model\n- Another answer.\n")
+        val exported = brain.exportText()
+        for (question in listOf("why cannot i import the model", "why can not i import the model", "Why can't I import the model?")) {
+            assertNull(brain.reply(question))
+            assertFalse(learn(brain, question, "Do not resolve ambiguity by guessing."))
+        }
+        assertEquals(2, brain.status().imported)
+        assertEquals(exported, brain.exportText())
+    }
+    @Test fun matcherIndexIsRebuiltAfterLearnForgetClearReplaceAndReload() {
+        val dir = temp.newFolder()
+        val brain = RiveBrain(dir)
+        val question = "what is the capital of france"
+        val typo = "what is the captial of france"
+        assertTrue(learn(brain, question, "Paris."))
+        assertEquals("Paris.", brain.reply(typo)!!.text)
+        brain.forget(question)
+        assertNull(brain.reply(typo))
+        assertTrue(learn(brain, question, "Paris again."))
+        brain.reload()
+        assertEquals("Paris again.", brain.reply(typo)!!.text)
+        brain.clearLearned()
+        assertNull(brain.reply(typo))
+        install(brain, "+ $question\n- Owner version.\n")
+        assertEquals("Owner version.", brain.reply(typo)!!.text)
+        install(brain, "+ other literal question\n- New rule set.\n")
+        assertNull(brain.reply(typo))
+    }
     @Test fun malformedImportDoesNotReplaceWorkingRules() {
         val brain = brain()
         install(brain, "+ hello\n- working\n")

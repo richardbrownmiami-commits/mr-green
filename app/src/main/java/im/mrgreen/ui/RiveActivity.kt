@@ -47,11 +47,12 @@ class RiveActivity : AppCompatActivity() {
         text("Rive rules & learning", 25f, true)
         text("Safe text-only RiveScript subset: one literal lowercase trigger and one literal reply per rule. No wildcards, tags, or scripts. Replies may use \\n for a newline.", 14f)
         text("Rules reload immediately between replies; a reply already streaming is unchanged.", 14f)
+        text("Matching handles sentence punctuation, wrapping quotes, greeting commas and unambiguous contractions. One approved common typo can match only at a spelling score of at least 94% with one candidate. Ambiguous contractions, names, numbers, operators, paraphrases and other uncertain differences are not guessed. This is not semantic understanding. When saved rules exist, misses use local GGUF, even if cloud is enabled.", 14f)
         statusView = text("Loading rule status…", 14f)
         importButton = button("Import .rive rules") { chooseImport() }
         editButton = button("Edit imported rule text") { editImported() }
         exportButton = button("Export rules…") { exportPicker.launch("mr-green-rules.rive") }
-        text("Auto-learning uses completed local GGUF answers only. Rules are checked first; when enabled, misses are forced local (not cloud). Unverified answers may be wrong, stale, or context-dependent; this does not train the model. Exact normalized questions only. Learned answers never execute tools.", 14f)
+        text("Auto-learning uses completed local GGUF answers only. Rules are checked first; when enabled, misses are forced local (not cloud). Unverified answers may be wrong, stale, or context-dependent; this does not train the model. Conservative normalized matches only. Learned answers never execute tools.", 14f)
         learningSwitch = SwitchCompat(this).apply {
             text = "Auto-learn from local answers"; setTextColor(0xFFB98AFF.toInt()); minHeight = dp(52)
             isChecked = prefs.getBoolean("auto_learn", false)
@@ -145,7 +146,7 @@ class RiveActivity : AppCompatActivity() {
                 learningSwitch.isChecked = false
                 installLearningListener()
                 AlertDialog.Builder(this).setTitle("Enable auto-learning?")
-                    .setMessage("Only completed local GGUF answers are learned. Answers are unverified and may be wrong, stale, or context-dependent. Misses stay local rather than going to cloud; learned answers are exact-question matches and never execute tools. This does not train the model.")
+                    .setMessage("Only completed local GGUF answers are learned. Answers are unverified and may be wrong, stale, or context-dependent. Misses stay local rather than going to cloud; learned answers use conservative normalized matching and never execute tools. This does not train the model.")
                     .setNegativeButton("Cancel", null).setPositiveButton("Enable") { _, _ -> setLearning(true) }
                     .setOnDismissListener { enablingConfirmation = false }.show()
             } else {

@@ -207,13 +207,16 @@ object AgentController {
             if (ruleReply != null && !cancelled.get()) {
                 app.store.addMessage("user", text)
                 app.store.addMessage("assistant", ruleReply.text)
-                mutable.update { it.copy(mode = "Local", status = if (ruleReply.learned) "Saved local reply · unverified" else "Rive rule reply",
+                val source = if (ruleReply.learned) "Saved local reply · unverified" else "Rive rule reply"
+                mutable.update { it.copy(mode = "Local", status = source + if (ruleReply.typoCorrected) " · typo corrected" else "",
                     streaming = "", refresh = System.currentTimeMillis()) }
                 return@enqueue
             }
             val learnThisTurn = app.getSharedPreferences("rive", Context.MODE_PRIVATE).getBoolean("auto_learn", false)
-            // Learning is explicitly local GGUF only, not cloud output or cloud cache.
-            if (!learnThisTurn && tryCloud(text, runId)) return@enqueue
+            // With saved rules, uncertain/missing matches must use GGUF, never a cached
+            // cloud answer. This does not alter the owner's stored cloud/learning settings.
+            val ruleStatus = try { app.rive.status() } catch (_: Exception) { null }
+            if (im.mrgreen.rive.RiveLearningPolicy.allowCloudFallback(learnThisTurn, ruleStatus) && tryCloud(text, runId)) return@enqueue
             if (cancelled.get()) return@enqueue
             mutable.update { it.copy(mode = "Local", streaming = "", generating = false) }
             if (!ensureLocalReady()) {

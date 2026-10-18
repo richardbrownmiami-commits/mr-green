@@ -86,6 +86,22 @@ class RiveNavigationTest {
         assertFalse(prefs.getBoolean("auto_learn", false))
         controller.destroy()
     }
+    @Test fun existingLearningAndOtherSettingsArePreservedOnScreenOpen() {
+        val controller = Robolectric.buildActivity(RiveActivity::class.java)
+        val activity = controller.get()
+        val preferences = activity.getSharedPreferences("rive", 0)
+        preferences.edit().putBoolean("auto_learn", true).putString("owner_sentinel", "keep").commit()
+        val cloud = activity.getSharedPreferences("cloud", 0)
+        cloud.edit().putBoolean("enabled", true).commit()
+        controller.create()
+        waitForIo(activity)
+        assertTrue(views(activity.window.decorView).filterIsInstance<androidx.appcompat.widget.SwitchCompat>().single().isChecked)
+        assertTrue(preferences.getBoolean("auto_learn", false))
+        assertEquals("keep", preferences.getString("owner_sentinel", null))
+        assertTrue(cloud.getBoolean("enabled", false))
+        controller.destroy()
+    }
+
     @Test fun editingRequiresValidationAndReplacementApproval() {
         val controller = Robolectric.buildActivity(RiveActivity::class.java).create()
         val activity = controller.get()
