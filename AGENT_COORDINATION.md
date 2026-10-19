@@ -1,4 +1,4 @@
-# Local-only chat: agent review and work split
+# Mr Green: offline Android agent goal, review and proposed work split
 
 ## Status: paused for review
 
@@ -7,6 +7,39 @@ Owner instruction: commit this coordination file so a second agent can read it, 
 Repository: https://github.com/richardbrownmiami-commits/mr-green only. Do not modify SkillBot or any other repository.
 
 Starting app source: `8db2615`, release `v0.10.3-memory-preview`. No app implementation changes have been made in this pass. The existing release still has the cloud-chat behavior described below; this file is not a privacy fix.
+
+Coordination baseline: `44d9d2f` (the two later commits changed this document, not app source). This update clarifies the goal and records separate review replies only. **Neither Agent A nor Agent B has an implementation assignment.** Builds, version changes and APK releases remain paused until the owner reviews the replies and explicitly assigns work.
+
+## Clarified goal and identity
+
+Mr Green is one offline-first Android mobile agent with a consistent identity, text conversation, local memory and permission-controlled phone actions. Proposed user-facing identity prompt:
+
+> You are Mr Green, the user's Android mobile agent. Speak clearly and consistently as Mr Green. Use available app data and registered capabilities; ask when a request is unclear or needs approval. Say when a capability, permission, connection or local model is unavailable. Never invent device state or claim an action succeeded without execution evidence. Do not claim to be human; answer questions about how you work honestly.
+
+The greeting need not gratuitously introduce an AI label, but must not conceal model-assisted operation when asked or misrepresent Mr Green as a person. Identity is app-controlled configuration shared by rules and local prompts, not something a model or Doctor may silently rewrite.
+
+`plan.md` sections 9, 18, 19 and 22 describe routing, learning, Doctor and proactive behavior. Both `plan.md` and `docs/plan.md` also contain older online-first/cloud-screen rules and roadmap ambitions, not proof that every action exists. For this review the owner's latest **no cloud-generated live chat** requirement supersedes those older routing proposals. Plan files remain unchanged in this documentation-only pass.
+
+## Proposed architecture — target, not completed implementation
+
+1. **App first:** text UI → serialized orchestrator → deterministic router, rules/templates, SQLite/FTS memory and registered tools. Known tasks use real app data without generation. Preserve recognized-action handling; unsupported or failed actions must not fall through into fabricated model success.
+2. **Local helper when needed:** the existing on-device GGUF may answer an unanswered question or propose a structured task plan using a compact registered-tool schema and bounded relevant memory. Ask clarification questions for missing details. This is a proposed extension where not already wired; importing a GGUF does not connect new Android actions.
+3. **APK remains in control:** validate proposed tool names, arguments, permissions, risk and dependencies. Execute only registered actions, sequentially with cancellation and verifiers. Reject unsafe/unknown tools; obtain required approvals, including confirmation for outbound/destructive actions. Model text is not executable authority, arbitrary SQL or installable code.
+4. **Memory and improvement inbox:** keep useful context, preferences, episodes and action results locally with bounded retrieval, provenance and user controls. Reusable dialogue/templates/skills require validation, dry-run tests and approval before activation, with versions and undo. Ask about corrections or missing capabilities; generated answers are not automatically verified facts.
+5. **Background/event work:** rule-based notification/task events and deterministic housekeeping use Android-compatible scheduled work or an appropriate visible foreground service, with opt-in permissions, quiet hours, battery/RAM limits and user work taking priority. Keep one serialized inference owner; no continuously running model or continuous screen reading. Android 11/MIUI can delay or kill work: always-on survival and timing require real Redmi tests, not promises.
+6. **Separate optional cloud Doctor:** owner-triggered maintenance may send only an explicitly approved, minimized app-configuration/incident schema, never live questions, conversation history, private recalled memory or screen content. Outputs are owner-facing suggestions/reports or typed data-change proposals, never live chat replies. Validate, regression-test, obtain approval and retain undo before database/dialogue changes. Design/capability/code improvements become owner/developer proposals requiring a separately authorized build when native changes are needed, not cloud self-modification. No arbitrary DB access, permission escalation or changes to safety/identity core rules.
+
+### Learning is not GGUF weight training
+
+Feasible app-data learning stores approved trigger phrases, dialogue templates, facts/preferences and reusable flows over **existing** tools, then retrieves/reuses them. Saving a proposal differs from activating it; sensitive memory remains local and user-controllable. Existing generated saved replies may be unverified and cannot become trusted actions/facts through repetition.
+
+This is **not model weight training**. No implemented on-device fine-tuning pipeline is established here; chat history and database updates do not silently train the GGUF. Actual weight training would require a separate scope, suitable compute, consented data, evaluation and compatible model deployment. It is outside this paused APK work.
+
+### Feasibility and present gaps
+
+The app-first/local-helper design is feasible within Android permissions and registered tools, not as unrestricted control over every app. Compound actions need supported tools and verifiers; web-dependent tasks still need internet even though chat stays local. Preserve Android 11/API 30, ARMv7-only packaging, one loaded model, bounded context and the plan's 1.2 GB peak design target (2 GB cap). Speed, RAM and MIUI behavior remain device-validation gates.
+
+**0.10.3 is not yet this target:** `replyWithRulesOrModel` can invoke ordinary cloud chat; `draftPlugin` can also call the gateway. Local deterministic `HealthMaintenance` is not a cloud Doctor. No distinct dedicated owner-only cloud-maintenance route is established in current source. Disabling live cloud chat does not create one; keep such maintenance unavailable until separately reviewed, authorized and implemented.
 
 ## What the owner wants
 
@@ -47,9 +80,17 @@ Please add your responses below before editing implementation files.
 7. Are there existing reply caches, deferred requests, settings or fallback errors that could re-enable cloud chat after the controller changes? Specify any migration needed without deleting user data.
 8. What release/signing constraints must be honored for a data-preserving update? Do not assume this environment has the original APK signing key, or tell the owner to uninstall to resolve a mismatch.
 
+### Goal/feasibility decisions still needed
+
+- Which registered `plan.md` actions and compound-action examples are required next, and which remain roadmap only?
+- Agree on identity/disclosure wording and which corrections/preferences may save automatically versus approval-only dialogue/skill activation. How should unverified saved replies be handled without deleting user data?
+- Should the first implementation only close cloud-chat paths and retain local housekeeping, leaving cloud Doctor for separate approval? What maintenance fields, owner trigger and outbound preview would be acceptable later?
+- Which background events are opt-in, what delay is acceptable on MIUI, and who supplies real-device tests and the matching signing key? No unlimited background-service guarantee.
+- Agree on a structured local-plan schema and production test seam before allocating shared files; do not assume model proposals already reach all actions.
+
 ## Proposed future work — not yet assigned or authorized to execute
 
-### Workstream A: app routing and privacy boundary
+### Proposed Agent A workstream: app routing and privacy boundary (unassigned)
 
 Proposed files: `AgentController.kt`, relevant gateway policy/provider files, and only directly affected runtime callers.
 
@@ -59,7 +100,7 @@ Proposed files: `AgentController.kt`, relevant gateway policy/provider files, an
 - Close context/planner/builder side paths that could carry live user content to cloud; settle builder scope during review.
 - Do not create a maintenance feature without an explicit, reviewed scope.
 
-### Workstream B: regression tests, audit and documentation
+### Proposed Agent B workstream: regression tests, audit and documentation (unassigned)
 
 Proposed files: new/updated chat-routing regression tests, `scripts/check-conversation-wiring.py`, targeted README/manual/user-guide changes and a concise validation record.
 
@@ -69,7 +110,7 @@ Proposed files: new/updated chat-routing regression tests, `scripts/check-conver
 - Audit all chat entry points and relevant gateway/deferred/cache paths.
 - Document that separate cloud maintenance is unavailable unless source evidence establishes otherwise.
 
-**Overlap rule:** A owns implementation and shared routing interfaces; B owns tests/docs only after both agree on the interface. Neither edits the other's files without recording agreement here. The generated self-manual lives in `app/build.gradle.kts`; reserve edits to that file for the integration owner to avoid version/build conflicts. The owner must assign agents and approve the split first.
+**Proposed overlap rule, effective only after owner assignment:** A would own implementation and shared routing interfaces; B would own tests/docs after interface agreement. Neither would edit the other's files without recording agreement here. Reserve generated self-manual edits in `app/build.gradle.kts` for the future integration owner to avoid version/build conflicts. These are proposals, not assignments; the owner must approve and assign the split first.
 
 ### Integration owner, after both workstreams and owner approval
 
@@ -78,43 +119,54 @@ Proposed files: new/updated chat-routing regression tests, `scripts/check-conver
 - Separate host evidence from Redmi evidence: host JVM fakes are not native GGUF execution, and a built APK is not Redmi installation, speed, RAM, MIUI survival or real-device privacy verification.
 - Inspect version, target SDK and ARMv7-only APK contents, preserve signing transparency, then publish one coherent update only if checks pass and the release scope remains authorized.
 
-## Reviewer response — second agent to fill in
+## Reviewer responses — separate agent turns
 
 Use the separate reply blocks below for alternating review turns. Agent A and Agent B are review labels only; they do not assign the proposed workstreams or authorize implementation. Record each agent's identity in their own block. Append a new numbered turn under your own block rather than overwriting earlier replies or the other agent's comments. Reference the other agent's turn number when responding, and leave any unresolved decisions for the owner.
 
 ### Agent A replies
 
-#### Agent A — turn 1 (to fill in)
+#### Agent A — turn 1 (goal clarification and documentation review)
 
-- Agent identity:
-- Reviewed starting commit:
-- Responding to Agent B turn / questions 1–8:
-- Additional entry points / findings (paths and callers):
-- Answers / review comments:
-- Suggested changes to the proposal:
-- Proposed files to own (not assigned):
-- Shared files / interface coordination needed:
-- Questions for Agent B:
-- Blocking questions / decisions for owner:
-- Review complete: no / yes
+- Agent identity: Cue coordination agent; review/documentation role only, no implementation assignment.
+- Reviewed starting commit: `44d9d2f`; app baseline remains `8db2615` / `v0.10.3-memory-preview` because intervening commits only changed this file.
+- Responding to Agent B turn / questions 1–8: requested independent read-only review, now recorded in Agent B turn 1 below. Agree with B's local-only minimum and production-path testing proposal. B reviewed before this reply existed; the baseline clarification here resolves its commit question.
+- Additional entry points / findings: directly confirmed `AgentController.kt:227–268` calls `tryCloud` before local readiness for eligible unmatched chat; `:350–388` drafts plugins through category `packs`; `:390–418` exposes a non-screen cloud-selecting context argument; `:422–466` streams and persists ordinary cloud replies. These are not owner-only maintenance boundaries.
+- Answers / review comments: the proposed architecture keeps deterministic actions authoritative, local GGUF advisory, and all execution behind registry/permission/confirmation checks. Preserve memory-dependent routing, cancellation and existing recognized-action failures. Plan sections 18/19 already distinguish data learning and approved Doctor changes from weight training; old online-first passages conflict with the latest goal and need later targeted reconciliation. No implementation or device tests performed here.
+- Suggested changes to the proposal: first agree a narrow privacy/routing fix; separately review identity/data-learning extensions, structured planning and any cloud Doctor. Do not expand a privacy fix into autonomous maintenance or promise every roadmap action. Preserve existing data, original signing identity and ARMv7/API constraints.
+- Proposed files to own (not assigned): only this coordination document is authorized now. Future routing/gateway workstream A remains a proposal for the owner's decision, not my assignment.
+- Shared files / interface coordination needed: agree the injectable production dispatch seam and strict gateway policy before test ownership. No shared-file edits until owner assignment; reserve build/manual integration for the future integration owner.
+- Questions for Agent B: please append any follow-up under your own block, referencing A turn 1: does the clarified baseline resolve your concern, and are any additional current production callsites known to bypass local-only policy? Do not implement while answering.
+- Blocking questions / decisions for owner: select the first supported actions/background events, approval rules for learning, local-only/disabled plugin drafting, and whether cloud Doctor is deferred; then explicitly assign files/workstreams. Matching signing key and Redmi test access are future release gates, not permission to build now.
+- Review complete: yes for this goal/documentation pass; detailed implementation audit, owner decisions and assignment remain pending.
 
 ---
 
 ### Agent B replies
 
-#### Agent B — turn 1 (to fill in)
+#### Agent B — turn 1 (independent read-only source review)
 
-- Agent identity:
-- Reviewed starting commit:
-- Responding to Agent A turn / questions 1–8:
-- Additional entry points / findings (paths and callers):
+The following is the independent reviewer's response, condensed for this handoff; it made no file edits or implementation changes.
+
+- Agent identity: independent Agent B review participant, no workstream assigned.
+- Reviewed starting commit: requested `44d9d2f`; questioned whether the source reference `8db2615` was stale. Agent A had not posted a reply when this review ran; A turn 1 now clarifies the documentation-only commit difference.
+- Responding to Agent A turn / questions 1–8: no Agent A turn existed at review time; answered the document's questions 1–8 as follows.
+- Additional entry points / findings: ordinary chat reaches `AgentController.replyWithRulesOrModel → tryCloud`; plugin builder reaches `draftPlugin` (`packs`). `answerContext` has a cloud-selecting argument; callers include `RoadmapActivity` planner, `DoctorRepairActivity`, `KnowledgeActivity` RAG and `RoadmapRuntime` screen provider. Review each caller's actual arguments, not just its category. `LearningRuntime.plannerGateway` and `RoadmapRuntime.execute`'s temporary disabling are additional planner boundary points.
 - Answers / review comments:
-- Suggested changes to the proposal:
-- Proposed files to own (not assigned):
-- Shared files / interface coordination needed:
-- Questions for Agent A:
-- Blocking questions / decisions for owner:
-- Review complete: no / yes
+  1. Audit all gateway callsites above; `tryCloud` emits/stores cloud chat today. Current locally configured context callers do not make the generic cloud-selecting API safe.
+  2. No dedicated owner-data-only cloud-maintenance route found. `GatewayClient.tryChat` uses generic `/chat/completions`; a `doctor` category is metadata, and `/models` is discovery. `DoctorRepairActivity`'s local proposal/validate/approve workflow is not a dedicated cloud route.
+  3. Safest minimum: make plugin drafting local-only, or unavailable without a usable local model, unless a verifiable owner-config-only boundary is proven. A prompt and `packs` category do not establish that boundary.
+  4. Prefer removing cloud-selecting `answerContext` arguments; a compatible signature is acceptable only if it centrally enforces local-only behavior. Update callers/tests accordingly.
+  5. Inject local readiness/generation and gateway dispatch at the actual controller boundary; host fake-local/cloud-spy tests must exercise production routing without JNI, not merely a detached policy constant.
+  6. Reject prohibited chat/context requests in the generic gateway as defense in depth. Do not bless arbitrary categories as maintenance; any future narrow maintenance request type requires separate approval/design.
+  7. Audit cache/deferred replay (`GatewayClient.retryDeferred`), settings and every `tryChat` call. Confirm persisted semantics before deciding migration; do not replay prohibited content, delete unrelated user data or substitute cloud on local failure.
+  8. Preserve package identity, app data, API 30 and ARMv7 constraints. Confirm the original signing key before future updates; do not suggest uninstalling for a certificate mismatch. Host tests/builds do not prove Redmi inference or background survival.
+- Feasibility/boundaries: deterministic rules/router and applicable SQLite memory first, existing local GGUF for unknown answers; structured action output remains a validated proposal, never free-form commands. Stored rules/dialogue/memory are app-data learning, not GGUF weight training. Android permissions, RAM and background limits prevent unrestricted or guaranteed persistent operation. Optional future cloud Doctor must be owner-only and never process live chat, recalled private snippets, screens or ordinary planner/plugin requests. No distinct route exists now. Old Groq-first plan text needs later reconciliation, not implementation claims.
+- Suggested changes to the proposal: keep the first scope to privacy escape hatches, routing tests/docs and existing safeguards. No autonomous maintenance, weight-training claims, broad redesign or unrelated work. Revise stale `scripts/check-conversation-wiring.py` expectations alongside production-path tests after authorization.
+- Proposed files to own (not assigned): none; review-only. A bounded tests/docs role could be considered if the owner later assigns it after interface agreement.
+- Shared files / interface coordination needed: agree test seam and gateway policy with Agent A/owner before editing routing interfaces; reserve `app/build.gradle.kts` for the future integration owner.
+- Questions for Agent A: have all `GatewayClient.tryChat` callers, deferred retries and context callers been confirmed? Which narrow seam will exercise actual production dispatch without JNI? Baseline concern is answered by A turn 1; a complete callsite audit still belongs to future assigned work.
+- Blocking questions / decisions for owner: decide local-only/disabled plugin drafting and exact implementation files/workstreams after review; confirm signing-key availability before any release. No implementation authorization inferred from this review.
+- Review complete: yes, source review only; no edits, tests/builds, push or implementation by Agent B.
 
 ---
 
@@ -132,6 +184,7 @@ Both agents may continue with turn 2, turn 3, and so on in their respective bloc
 ## Handoff log
 
 - First agent: inspected starting source and created this coordination file only. Implementation, builds, tests and release publishing are paused pending second-agent review and the owner's work-split instruction.
+- Goal clarification pass: Agent A updated only this document and recorded the independent Agent B review above. Both review replies are present; owner decisions and exact work assignments remain pending. No app changes, app tests, builds, version bumps or APK releases were performed. Future agents should append numbered replies under their own blocks rather than overwrite this review.
 
 ## Additional read-only audit notes for the reviewer
 
@@ -141,4 +194,4 @@ These notes are source findings, not the second agent's requested review or owne
 
 `ScreenActivity.kt` and its provider interface retain a local-only Boolean and cloud-provider wording despite the runtime forcing screen inference local. Review that API and wording without weakening protected-content, consent or ephemeral-screen safeguards. `RiveLearningPolicyTest.kt` positively expects cloud fallback for some missing-rule states; revise those expectations with the routing fix. `docs/plan.md` also contains old cloud-screen and plugin gateway descriptions that need reconciliation with the final policy.
 
-The initial audit made no file edits, ran no app tests and verified no Redmi behavior. The independent reviewer should record their own findings in the response section above, then wait for the owner to assign the work.
+The initial audit made no file edits, ran no app tests and verified no Redmi behavior. The independent review is now recorded in Agent B turn 1 above. Any follow-up belongs in a new numbered reply; all agents must wait for the owner to assign implementation work.
