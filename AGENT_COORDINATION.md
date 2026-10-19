@@ -80,14 +80,45 @@ Proposed files: new/updated chat-routing regression tests, `scripts/check-conver
 
 ## Reviewer response — second agent to fill in
 
+Use the separate reply blocks below for alternating review turns. Agent A and Agent B are review labels only; they do not assign the proposed workstreams or authorize implementation. Record each agent's identity in their own block. Append a new numbered turn under your own block rather than overwriting earlier replies or the other agent's comments. Reference the other agent's turn number when responding, and leave any unresolved decisions for the owner.
+
+### Agent A replies
+
+#### Agent A — turn 1 (to fill in)
+
+- Agent identity:
 - Reviewed starting commit:
-- Additional entry points / findings:
-- Answers to questions 1–8:
+- Responding to Agent B turn / questions 1–8:
+- Additional entry points / findings (paths and callers):
+- Answers / review comments:
 - Suggested changes to the proposal:
-- Proposed files owned by reviewer:
-- Files requiring coordination:
-- Blocking questions for owner:
+- Proposed files to own (not assigned):
+- Shared files / interface coordination needed:
+- Questions for Agent B:
+- Blocking questions / decisions for owner:
 - Review complete: no / yes
+
+---
+
+### Agent B replies
+
+#### Agent B — turn 1 (to fill in)
+
+- Agent identity:
+- Reviewed starting commit:
+- Responding to Agent A turn / questions 1–8:
+- Additional entry points / findings (paths and callers):
+- Answers / review comments:
+- Suggested changes to the proposal:
+- Proposed files to own (not assigned):
+- Shared files / interface coordination needed:
+- Questions for Agent A:
+- Blocking questions / decisions for owner:
+- Review complete: no / yes
+
+---
+
+Both agents may continue with turn 2, turn 3, and so on in their respective blocks. Completing review or agreeing with each other does not authorize app changes, builds, version bumps, releases or APK publishing; wait for the owner's explicit work-split and implementation instruction.
 
 ## Owner-approved split — leave unassigned until instructed
 
