@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="im.mrgreen.actions.ActionRoutingTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-19T08:13:24" hostname="b336462f34df" time="5.079">
+  <properties/>
+  <testcase name="schemasAreUniqueAndDeclaredForEveryRoutedTool" classname="im.mrgreen.actions.ActionRoutingTest" time="3.937"/>
+  <testcase name="commonActionWordingAndSentencePunctuationStayLocal" classname="im.mrgreen.actions.ActionRoutingTest" time="0.126"/>
+  <testcase name="dryRunAndNotesListRoutingAreAvailable" classname="im.mrgreen.actions.ActionRoutingTest" time="0.06"/>
+  <testcase name="cancellationStopsRemainingCompoundSteps" classname="im.mrgreen.actions.ActionRoutingTest" time="0.097"/>
+  <testcase name="everyStarterPhraseRoutesToItsExpectedTool" classname="im.mrgreen.actions.ActionRoutingTest" time="0.307"/>
+  <testcase name="typedExecutionDistinguishesVerifiedResultsAndClockHandoffs" classname="im.mrgreen.actions.ActionRoutingTest" time="0.149"/>
+  <testcase name="compoundPlanIsOrderedAndOutboundMessageNeverMapsToTool" classname="im.mrgreen.actions.ActionRoutingTest" time="0.046"/>
+  <testcase name="invalidLaterStepPreventsEarlierSideEffect" classname="im.mrgreen.actions.ActionRoutingTest" time="0.046"/>
+  <testcase name="deterministicMathDateAndNoteSlotsArePreserved" classname="im.mrgreen.actions.ActionRoutingTest" time="0.056"/>
+  <testcase name="compoundPlansCannotInterleaveAcrossRuntimeInstances" classname="im.mrgreen.actions.ActionRoutingTest" time="0.251"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

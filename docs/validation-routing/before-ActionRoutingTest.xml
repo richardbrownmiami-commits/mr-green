@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="im.mrgreen.actions.ActionRoutingTest" tests="10" skipped="0" failures="2" errors="0" timestamp="2026-10-19T08:03:17" hostname="b336462f34df" time="6.804">
+  <properties/>
+  <testcase name="schemasAreUniqueAndDeclaredForEveryRoutedTool" classname="im.mrgreen.actions.ActionRoutingTest" time="5.934"/>
+  <testcase name="commonActionWordingAndSentencePunctuationStayLocal" classname="im.mrgreen.actions.ActionRoutingTest" time="0.067">
+    <failure message="java.lang.AssertionError: What is the time? expected:&lt;clock.time&gt; but was:&lt;null&gt;" type="java.lang.AssertionError">java.lang.AssertionError: What is the time? expected:&lt;clock.time&gt; but was:&lt;null&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at im.mrgreen.actions.ActionRoutingTest.commonActionWordingAndSentencePunctuationStayLocal(ActionRoutingTest.kt:79)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.robolectric.RobolectricTestRunner$HelperTestRunner$1.evaluate(RobolectricTestRunner.java:502)
+	at org.robolectric.internal.SandboxTestRunner$2.lambda$evaluate$2(SandboxTestRunner.java:285)
+	at org.robolectric.internal.bytecode.Sandbox.lambda$runOnMainThread$0(Sandbox.java:104)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+</failure>
+  </testcase>
+  <testcase name="dryRunAndNotesListRoutingAreAvailable" classname="im.mrgreen.actions.ActionRoutingTest" time="0.06"/>
+  <testcase name="cancellationStopsRemainingCompoundSteps" classname="im.mrgreen.actions.ActionRoutingTest" time="0.129"/>
+  <testcase name="everyStarterPhraseRoutesToItsExpectedTool" classname="im.mrgreen.actions.ActionRoutingTest" time="0.149">
+    <failure message="java.lang.AssertionError: routing accuracy 187/200; failures: clock.time | what is the time right now =&gt; null; clock.time | what is the time =&gt; null; math.calculate | compute 10 % 3 =&gt; null; device.volume | change ringer volume =&gt; null; device.settings | open settings =&gt; app.open; device.settings | please open settings =&gt; app.open; device.settings | settings please =&gt; null; device.settings | launch settings =&gt; null; device.storage | open internal storage =&gt; null; device.date_settings | show date settings =&gt; null; device.app_settings | app settings =&gt; null; device.app_settings | show app settings =&gt; null; device.app_settings | launch app settings =&gt; app.open expected:&lt;200&gt; but was:&lt;187&gt;" type="java.lang.AssertionError">java.lang.AssertionError: routing accuracy 187/200; failures: clock.time | what is the time right now =&gt; null; clock.time | what is the time =&gt; null; math.calculate | compute 10 % 3 =&gt; null; device.volume | change ringer volume =&gt; null; device.settings | open settings =&gt; app.open; device.settings | please open settings =&gt; app.open; device.settings | settings please =&gt; null; device.settings | launch settings =&gt; null; device.storage | open internal storage =&gt; null; device.date_settings | show date settings =&gt; null; device.app_settings | app settings =&gt; null; device.app_settings | show app settings =&gt; null; device.app_settings | launch app settings =&gt; app.open expected:&lt;200&gt; but was:&lt;187&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at im.mrgreen.actions.ActionRoutingTest.everyStarterPhraseRoutesToItsExpectedTool(ActionRoutingTest.kt:54)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.robolectric.RobolectricTestRunner$HelperTestRunner$1.evaluate(RobolectricTestRunner.java:502)
+	at org.robolectric.internal.SandboxTestRunner$2.lambda$evaluate$2(SandboxTestRunner.java:285)
+	at org.robolectric.internal.bytecode.Sandbox.lambda$runOnMainThread$0(Sandbox.java:104)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+</failure>
+  </testcase>
+  <testcase name="typedExecutionDistinguishesVerifiedResultsAndClockHandoffs" classname="im.mrgreen.actions.ActionRoutingTest" time="0.117"/>
+  <testcase name="compoundPlanIsOrderedAndOutboundMessageNeverMapsToTool" classname="im.mrgreen.actions.ActionRoutingTest" time="0.034"/>
+  <testcase name="invalidLaterStepPreventsEarlierSideEffect" classname="im.mrgreen.actions.ActionRoutingTest" time="0.036"/>
+  <testcase name="deterministicMathDateAndNoteSlotsArePreserved" classname="im.mrgreen.actions.ActionRoutingTest" time="0.033"/>
+  <testcase name="compoundPlansCannotInterleaveAcrossRuntimeInstances" classname="im.mrgreen.actions.ActionRoutingTest" time="0.245"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

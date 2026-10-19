@@ -1,12 +1,14 @@
 # Phase 3 actions module integration
 
+**Current integrated behavior:** see the [0.10.2 routing fix and phone checks](../phase3-routing-fix.md). The original isolated-module notes below describe earlier integration work. In the current app, recognized actions with missing/unsupported slots receive local clarification; only unmatched chat falls through. The starter fixture now requires all 200 phrases to route correctly.
+
 Package: `im.mrgreen.actions` (isolated Kotlin Views-compatible library files; no manifest, Gradle, or shared engine edits).
 
 ## Public API
 
 - `ActionRuntime(context: Context, store: GreenStore)`
 - `fun plan(request: String): JSONArray?` returns ordered `{tool,args,verify}` steps for confidently matched requests, otherwise `null`.
-- `suspend fun execute(request: String, progress: (String)->Unit = {}): String?` returns `null` when unmatched and executes a matching deterministic plan.
+- `suspend fun execute(request: String, progress: (String)->Unit = {}): String?` executes a matching deterministic plan, returns a local clarification for a recognized incomplete action, or returns `null` for unmatched chat.
 - `suspend fun executePlan(steps: JSONArray, progress: (String)->Unit = {}): String` validates tool IDs and argument keys/types-by-schema before sequential execution; caller should present progress events to UI.
 - `ActionTools.registry: List<ToolSchema>` publishes each tool's ID, description, argument schema, risk, and permission metadata.
 

@@ -77,27 +77,27 @@ private val library = listOf(
  Match("media_play","media.play",105,listOf("play music","play song","play video")),
  Match("date_add","date.add",110,listOf("45 days from today","in 45 days","45 days from now","date after 45 days")),
  Match("flashlight","device.flashlight",100,listOf("turn on flashlight","turn off flashlight","flashlight on","flashlight off","torch on","torch off"), listOf("do not turn on","dont turn on","don't turn on","not turn on")),
- Match("time","clock.time",100,listOf("what time","current time","time now","tell me the time","samay kya","kitne baje","time bata")),
+ Match("time","clock.time",100,listOf("what time","what is the time","what's the time","current time","time now","tell me the time","samay kya","kitne baje","time bata","time batao")),
  Match("date","clock.date",95,listOf("what date","today date","today's date","which day","aaj ki date","date today","what day is it")),
- Match("math","math.calculate",100,listOf("calculate","what is","solve","percent of","% of","plus","minus","multiply","divide","square root","add","subtract"),listOf("what is the time")),
+ Match("math","math.calculate",100,listOf("calculate","what is","what's","compute","solve","percent of","% of","plus","minus","times","multiply","divide","square root","add","subtract"),listOf("what is the time")),
  Match("alarm","alarm.set",90,listOf("set an alarm","set alarm","wake me","alarm for","alarm at","alarm lagao","remind me at")),
- Match("timer","timer.set",90,listOf("set a timer","timer for","start timer","countdown","timer lagao")),
+ Match("timer","timer.set",90,listOf("set a timer","set timer","timer for","start timer","countdown","timer lagao")),
  Match("notes","note.list",92,listOf("check notes","list notes","show notes","my notes")),
  Match("note","note.save",90,listOf("make a note","save a note","take a note","remember this","write a note","note this","yaad rakh","save note")),
  Match("app","app.open",80,listOf("open app","launch app","open youtube","open camera","open calculator","open settings"," kholo app","start app")),
  Match("wifi","device.wifi",90,listOf("wifi settings","wi-fi settings","turn on wifi","turn off wifi","enable wifi","disable wifi","wifi chalu","wifi band")),
  Match("bluetooth","device.bluetooth",90,listOf("bluetooth settings","turn on bluetooth","turn off bluetooth","enable bluetooth","disable bluetooth","bluetooth chalu")),
  Match("brightness","device.brightness",90,listOf("brightness settings","change brightness","screen brightness","display settings","brightness badhao")),
- Match("volume","device.volume",90,listOf("volume settings","sound settings","change volume","volume badhao","ringer settings")),
+ Match("volume","device.volume",90,listOf("volume settings","sound settings","change volume","volume badhao","ringer settings","change ringer volume")),
  Match("battery","device.battery",95,listOf("battery level","battery status","how much battery","battery kitni","check battery")),
  Match("airplane","device.airplane",90,listOf("airplane mode","flight mode","wireless settings","airplane chalu")),
- Match("settings","device.settings",80,listOf("open settings","phone settings","system settings","settings kholo")),
+ Match("settings","device.settings",81,listOf("open settings","phone settings","system settings","settings kholo","settings please","launch settings")),
  Match("location","device.location",90,listOf("location settings","gps settings","location services","location chalu")),
  Match("accessibility","device.accessibility",90,listOf("accessibility settings","open accessibility","accessibility kholo")),
  Match("notifications","device.notifications",90,listOf("notification settings","notifications settings","app notifications")),
- Match("storage","device.storage",90,listOf("storage settings","phone storage","manage storage","storage space")),
- Match("date_settings","device.date_settings",90,listOf("date and time settings","time settings","set date and time","automatic time")),
- Match("app_settings","device.app_settings",85,listOf("application settings","installed apps","manage apps","manage application settings"))
+ Match("storage","device.storage",90,listOf("storage settings","phone storage","manage storage","storage space","internal storage","manage phone storage")),
+ Match("date_settings","device.date_settings",90,listOf("date and time settings","time settings","date settings","set date and time","automatic time")),
+ Match("app_settings","device.app_settings",85,listOf("application settings","installed apps","manage apps","app settings","manage installed apps","manage application settings"))
 )
 
 /** Rules-first local runtime. Compound steps execute sequentially; state changes always remain user-mediated Android UI. */
@@ -107,16 +107,13 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
 
     /** Pure deterministic planning API; approved DB rule snapshots only change after refreshRules(). */
     fun planDryRun(request: String): JSONArray? {
-        val rewritten = approvedRules.fold(request) { text, rule ->
-            if(rule.first in setOf("synonym","slot_alias","trigger")) {
-                val before=" "+normalize(text)+" "; val pattern=" "+normalize(rule.second)+" "
-                if(before.contains(pattern)) before.replace(pattern," "+rule.third+" ").trim() else text
-            } else text
-        }
+        if (isNegated(request)) return null
+        val rewritten = rewrite(request)
         val parts = splitCompound(rewritten)
         if (parts.isEmpty()) return null
         val result = JSONArray()
         for (part in parts) {
+            if (isNegated(part)) return null
             val match = route(part) ?: return null
             val args = arguments(match.tool, part) ?: return null
             val step = JSONObject().put("tool", match.tool).put("args", args).put("verify", verifier(match.tool))
@@ -131,6 +128,13 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     }
 
     @Volatile private var approvedRules: List<Triple<String,String,String>> = emptyList()
+    private fun rewrite(request: String) = approvedRules.fold(request) { text, rule ->
+        if (rule.first in setOf("synonym", "slot_alias", "trigger")) {
+            val before = " " + normalize(text) + " "
+            val pattern = " " + normalize(rule.second) + " "
+            if (before.contains(pattern)) before.replace(pattern, " " + rule.third + " ").trim() else text
+        } else text
+    }
     /** Explicit IO refresh; rejects regex semantics and accepts only literal token replacements. */
     fun refreshRules() {
         approvedRules = store.readableDatabase.rawQuery("SELECT kind,pattern,replacement FROM match_rules WHERE approved=1 ORDER BY id", null).use { c ->
@@ -160,8 +164,27 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         refreshRules()
     }
 
+    /** A recognized action with missing/unsupported slots is not a chat question.
+     * No partial compound plan is executed and no model should invent a tool result. */
+    fun clarification(request: String): String? {
+        if (request.length > 4096) return null
+        val parts = splitCompound(rewrite(request))
+        val candidates = parts.flatMap { matchingIntents(it.replace(negationPrefix, "")).toList() }
+        if (candidates.isEmpty()) return null
+        if (parts.any { isNegated(it) }) return "No action was run. Negated commands are not executed."
+        return when (candidates.maxByOrNull { it.priority }?.tool) {
+            "alarm.set" -> "No action was run. Specify a numeric alarm time, for example: set alarm for 7:30 am. Confirm it in Clock."
+            "timer.set" -> "No action was run. Specify a timer from 1 second to 24 hours, for example: set timer for 5 minutes."
+            "math.calculate" -> "No action was run. Use numeric arithmetic, for example: calculate 2 plus 3 or what is 17% of 2450."
+            "date.add" -> "No action was run. Use a date offset from 1 to 36500 days, for example: what date is 45 days from today."
+            "note.save" -> "No action was run. Include the note text, for example: make a note: buy milk and eggs."
+            "app.open" -> "No action was run. Specify the installed app name, for example: open app Camera."
+            else -> "No action was run. I could not safely match the whole request. Try one action at a time with explicit details."
+        }
+    }
+
     suspend fun execute(request: String, progress: (String)->Unit = {}): String? {
-        val steps = plan(request) ?: return null
+        val steps = plan(request) ?: return clarification(request)
         return executePlan(steps, progress)
     }
 
@@ -285,13 +308,28 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
 
     private fun route(raw:String):Match? {
         if(raw.length > 4096) return null
+        return matchingIntents(raw).filter { arguments(it.tool,raw)!=null }.sortedByDescending { it.priority }.firstOrNull()
+    }
+    private fun matchingIntents(raw: String): Sequence<Match> {
         val s=normalize(raw)
-        if(Regex("(?i)\\b(?:date|today|from now|from today)\\b").containsMatchIn(s) && Regex("\\b\\d+ days?\\b").containsMatchIn(s)) return library.first { it.tool=="date.add" }
-        return library.asSequence().filter { m -> m.terms.any { normalize(it) in s } && m.negatives.none { normalize(it) in s } && approvedRules.none { it.first=="negative" && normalize(it.second) in s && (it.third==m.tool || it.third==m.intent) } }
-            .filter { arguments(it.tool,raw)!=null }.sortedByDescending { it.priority }.firstOrNull()
+        if(Regex("(?i)\\b(?:date|today|from now|from today)\\b").containsMatchIn(s) && Regex("\\b\\d+ days?\\b").containsMatchIn(s)) return sequenceOf(library.first { it.tool=="date.add" })
+        return library.asSequence().filter { m ->
+            val math = m.tool == "math.calculate"
+            val arithmetic = math && extractMath(commandText(raw)) != null
+            val phrase = m.terms.any {
+                Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(normalize(it)) + "(?![\\p{L}\\p{N}])").containsMatchIn(s)
+            }
+            (phrase || arithmetic) &&
+                !(m.tool in setOf("device.app_settings", "device.settings") && Regex("^(?:please )?open app\\s+").containsMatchIn(s)) &&
+                // "what is life" and "what is 5G" remain chat, not malformed calculations.
+                (!math || arithmetic || Regex("^(?:please )?(?:calculate|compute|solve)\\b").containsMatchIn(s) ||
+                    (s.any(Char::isDigit) && Regex("\\b(?:plus|minus|times|multiply|divide|square root|percent|add|subtract)\\b").containsMatchIn(s))) &&
+                m.negatives.none { normalize(it) in s } &&
+                approvedRules.none { it.first=="negative" && normalize(it.second) in s && (it.third==m.tool || it.third==m.intent) }
+        }
     }
     private fun arguments(tool:String,raw:String):JSONObject? {
-        val s=raw.trim()
+        val s=commandText(raw)
         return when(tool){
             "note.list","clock.time","clock.date","device.wifi","device.bluetooth","device.brightness","device.volume","device.battery","device.airplane","device.settings","device.location","device.accessibility","device.notifications","device.storage","device.date_settings","device.app_settings" -> JSONObject()
             "math.calculate" -> { val expr=extractMath(s) ?: return null; JSONObject().put("expression",expr) }
@@ -300,14 +338,15 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
             "media.play" -> JSONObject().put("query",raw.replace(Regex("(?i)\\b(play|music|song|video|please|a|the)\\b")," ").trim().ifBlank { "music" }).put("video",raw.contains("video",true))
             "alarm.set" -> { val t=parseTime(s) ?: return null; JSONObject().put("time",t).put("label", s.substringAfter("alarm", "").substringAfter("for", "").trim().take(60).ifBlank { "Mr Green alarm" }) }
             "timer.set" -> { val sec=parseDuration(s) ?: return null; JSONObject().put("seconds",sec).put("label","Mr Green timer") }
-            "note.save" -> { val text=s.replace(Regex("(?i)^(please\\s+)?(make|save|take|write|remember)\\s+(a\\s+)?(note|this)[: ]*"),"").trim(); if(text.isBlank()) return null; JSONObject().put("text",text) }
-            "app.open" -> { val n=s.replace(Regex("(?i)^(please\\s+)?(open|launch|start)\\s+(the\\s+)?(app\\s+)?"),"").trim(); if(n.isBlank()) return null; JSONObject().put("name",n) }
+            "note.save" -> { val text=raw.trim().replace(Regex("(?i)^(?:please\\s+)?(?:(?:make|save|take|write)\\s+(?:a\\s+)?note|remember\\s+this|note\\s+this|yaad\\s+rakh)[: ]*"),"").trim(); if(text.isBlank()) return null; JSONObject().put("text",text) }
+            "app.open" -> { val n=s.replace(Regex("(?i)^(please\\s+)?(open|launch|start)\\s+(the\\s+)?(app\\b\\s*)?"),"").trim(); if(n.isBlank()) return null; JSONObject().put("name",n) }
             else -> null
         }
     }
     private fun parseTime(s:String):String? {
-        val m=Regex("(?i)(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?").find(s) ?: return null
+        val m=Regex("(?i)(?<![\\d:])(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?(?![\\d:])").find(s) ?: return null
         var h=m.groupValues[1].toIntOrNull() ?: return null; val min=m.groupValues[2].ifBlank { "0" }.toIntOrNull() ?: return null
+        if (m.groupValues[3].isNotBlank() && h !in 1..12) return null
         if(min !in 0..59) return null; val ap=m.groupValues[3].lowercase(); if(ap=="pm"&&h<12) h+=12 else if(ap=="am"&&h==12) h=0
         if(h !in 0..23) return null
         if(ap.isEmpty() && h in 1..12 && Regex("(?i)\\b(evening|tonight|pm)\\b").containsMatchIn(s)) h=if(h==12)12 else h+12
@@ -320,7 +359,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         return (n*multiplier).takeIf { it in 1..86400 }?.toInt()
     }
     private fun extractMath(s:String):String? {
-        val percent=Regex("(?i)(\\d+(?:\\.\\d+)?)\\s*%\\s*(?:of)\\s*(\\d+(?:\\.\\d+)?)").find(s)
+        val percent=Regex("(?i)(\\d+(?:\\.\\d+)?)\\s*(?:%|percent)\\s*(?:of)\\s*(\\d+(?:\\.\\d+)?)").find(s)
         if(percent!=null) return "(${percent.groupValues[1]} / 100) * ${percent.groupValues[2]}"
         val candidate=s.replace(Regex("(?i)^(please\\s+)?(calculate|solve|what is|what's|compute)\\s+"),"").replace(Regex("(?i)\\s+(please|for me)$"),"").trim()
         val normalized=candidate.replace(Regex("(?i)\\bplus\\b"),"+").replace(Regex("(?i)\\bminus\\b"),"-").replace(Regex("(?i)\\b(times|multiplied by)\\b"),"*").replace(Regex("(?i)\\b(divided by|over)\\b"),"/").replace("×","*").replace("÷","/")
@@ -328,7 +367,12 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     }
     private fun verifier(tool:String)=when(tool){"note.save"->"note.readback";"alarm.set"->"alarm.user_confirmation";"timer.set"->"timer.user_confirmation";"app.open"->"app.launch_requested";"math.calculate"->"math.result";else->"tool.result"}
     private fun splitCompound(s:String):List<String> = s.split(Regex("(?i)\\s+(?:and then|then|after that|also)\\s+|\\s+and\\s+(?=(?:calculate|compute|solve|open|launch|start|set|turn on|turn off|enable|disable|check|what time|what date|tell me|save a note|take a note|write a note|remember this))")).map{it.trim()}.filter{it.isNotEmpty()}
-    private fun normalize(s:String)=s.lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}:.'+*/% -]")," ").replace(Regex("\\s+")," ").trim()
+    private val negationPrefix = Regex("(?i)^(?:please\\s+)?(?:do not|don't|don’t|dont|never)\\s+")
+    private fun isNegated(s: String) = negationPrefix.containsMatchIn(s.trim())
+    // Only control syntax is cleaned. Note payloads continue to use the untouched request.
+    private fun commandText(s: String) = s.trim().replace('’', '\'').trimEnd('?', '!', '.').trim()
+        .replace(Regex("(?i)\\s+(?:please|for me)$"), "").trim()
+    private fun normalize(s:String)=commandText(s).lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}:.'+*/% -]")," ").replace(Regex("\\s+")," ").trim()
 }
 
 private object Arithmetic {

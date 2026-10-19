@@ -1,0 +1,2 @@
+8588c6a9f4cb5bfb9525fea9eb70802acf9b909ae357fbe14099610d867e31c2  mr-green-0.10.2-routing-preview-personal-debug.apk
+42b28a0a652bfc274782e002666d0b48864c8ea304b0d2a47feb1eee0f26106c  mr-green-0.10.2-routing-preview-personal-release-unsigned.apk

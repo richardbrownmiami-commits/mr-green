@@ -79,6 +79,7 @@ class RoadmapRuntime(private val app: GreenApp) {
                 learning.recordEpisode(request.take(4000), plan, result.message.take(4000), result.verified)
             return result.message
         }
+        actions.clarification(request)?.let { return it }
         events.execute(request)?.let { return it }
         knowledge.execute(request)?.let { return it }
         if (request.trim().startsWith("{")) im.mrgreen.recipes.RecipeRuntime.execute(request)?.let { return it }

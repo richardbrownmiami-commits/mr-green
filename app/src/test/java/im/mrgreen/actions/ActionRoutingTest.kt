@@ -40,7 +40,7 @@ class ActionRoutingTest {
         "device.app_settings" to listOf("open application settings", "installed apps", "manage apps", "app settings", "please open application settings", "go to installed apps", "show app settings", "manage installed apps", "application settings please", "launch app settings")
     )
 
-    @Test fun starterLibraryRoutesAtLeastNinetyPercentOfTwoHundredGoldenPhrases() {
+    @Test fun everyStarterPhraseRoutesToItsExpectedTool() {
         assertEquals("expected twenty starter intent groups", 20, cases.size)
         assertTrue("expected 200 fixtures", cases.values.sumOf { it.size } == 200)
         val context = RuntimeEnvironment.getApplication()
@@ -51,7 +51,7 @@ class ActionRoutingTest {
             val got = runtime.plan(phrase)?.optJSONObject(0)?.optString("tool")
             if (got == expected) correct++ else failures += "$expected | $phrase => $got"
         } }
-        assertTrue("routing accuracy $correct/$total; failures: ${failures.joinToString("; ")}", correct.toDouble()/total >= .90)
+        assertEquals("routing accuracy $correct/$total; failures: ${failures.joinToString("; ")}", total, correct)
     }
 
     @Test fun compoundPlanIsOrderedAndOutboundMessageNeverMapsToTool() {
@@ -61,6 +61,23 @@ class ActionRoutingTest {
         assertEquals("clock.time", plan.getJSONObject(0).getString("tool"))
         assertEquals("math.calculate", plan.getJSONObject(1).getString("tool"))
         assertEquals(null, runtime.plan("send a WhatsApp message to Sam saying hello"))
+    }
+
+    @Test fun commonActionWordingAndSentencePunctuationStayLocal() {
+        val context = RuntimeEnvironment.getApplication()
+        val runtime = ActionRuntime(context, GreenStore(context))
+        mapOf(
+            "What is the time?" to "clock.time",
+            "What’s the time now?" to "clock.time",
+            "What's today's date?" to "clock.date",
+            "Calculate 2 plus 3?" to "math.calculate",
+            "compute 20 divided by 5" to "math.calculate",
+            "2 + 3" to "math.calculate",
+            "Set timer for 5 minutes." to "timer.set",
+            "Open calculator please." to "app.open"
+        ).forEach { (request, tool) ->
+            assertEquals(request, tool, runtime.plan(request)?.getJSONObject(0)?.getString("tool"))
+        }
     }
 
     @Test fun schemasAreUniqueAndDeclaredForEveryRoutedTool() {

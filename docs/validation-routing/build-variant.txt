@@ -1,0 +1,4 @@
+Gradle property: -PpersonalScreenReading=true
+Generated BuildConfig.PERSONAL_SCREEN_READING = true
+Source default when property is omitted: false
+Fresh signing key differs from published v0.10.1. Original installed personal APK signer is unknown.
