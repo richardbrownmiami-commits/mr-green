@@ -2,7 +2,7 @@
 
 An offline-first Android assistant for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit ARMv7**. This repository now contains one integrated app spanning the root [roadmap](plan.md), including the previously missing phase modules. Existing gateway, GGUF chat, Rive replies and plugin features are retained. SkillBot is not part of this repository and was not changed.
 
-**Version: 0.10.1-audited-preview.** Repository-wide audit fixes are summarized in the [test report](docs/test-report.md). This is still phone-testing code, not a declaration that every roadmap gate passed. No Redmi installation, phone benchmark, MIUI longevity or third-party-app automation result is claimed. **Screen reading is unavailable on Android 11:** display-screenshot success cannot safely verify the accessibility window. The app fails closed instead of bypassing privacy protection. Read the [implementation status](docs/implementation-status.md) and [phone guide](docs/user-guide.md).
+**Version: 0.10.1-audited-preview.** Repository-wide audit fixes are summarized in the [test report](docs/test-report.md). This is still phone-testing code, not a declaration that every roadmap gate passed. No Redmi installation, phone benchmark, MIUI longevity or third-party-app automation result is claimed. **Normal builds keep screen reading disabled on Android 11–13.** An explicitly built personal-use override now permits local, tap-triggered accessibility reads after separate on-device risk acceptance; it cannot reliably detect protected windows. This does not resolve the audit's secure-window limitation. Read the [phone guide](docs/user-guide.md#screen-and-app-recipes).
 
 ## What is integrated
 
@@ -13,7 +13,7 @@ Open **Overview → All capabilities · Phases 3–10** in the same `im.mrgreen`
 | 0–2: foundation and gateway | CPU-only llama.cpp/JNI, bundled SQLite/FTS5, chat, model picker, foreground service, diagnostics, optional encrypted-key Groq gateway, redaction and local fallback |
 | 3: actions | Rules-first Understanding Library, typed tool registry, sequential compound plans, time/date/date-offset/math, alarm/timer setup, file-and-DB notes, app launching, battery/settings and permission-gated flashlight |
 | 4: events and media | Opt-in notification/call/media observation, private event history, generic proactive alerts, quiet hours/allowlist/rate controls, MediaStore/MX Player/YouTube handoff, audio-state checks, optional reboot restoration |
-| 5: screen assistant | Fails closed on API 30–33; API 34+ window-targeted capture, transition checks, password/blocklist policy and local Q&A code remain, but are not device-verified |
+| 5: screen assistant | Normal builds fail closed on API 30–33; personal builds require explicit local risk acceptance; API 34+ keeps window-targeted capture. Password/blocklist checks and local Q&A remain; neither path is device-verified |
 | 6: planning, learning and Doctor | Local JSON plan review, approved routine reuse, Learning inbox, typed data-only repair proposals, expected-incident/golden replay, explicit approval, undo, snapshots and staged database restore, metadata-only incident reports, idle maintenance |
 | 7: plugins | Existing bounded flows, QuickJS sandbox, signed `.redpack` validation, review/permissions/200 MiB cap, rollback and safe mode; approved packs can call registered core actions |
 | 8: knowledge | Bounded web search/fetch and recipe cache, TXT/PDF/EPUB import with local citations, FTS retrieval, explicit-public-argument HTTPS MCP JSON-RPC review |
@@ -49,6 +49,12 @@ The fetch scripts pin native dependencies and apply narrow, reproducible ARMv7 o
 
 The installable debug output uses the builder's development key. Gradle's release output is unsigned until separately signed. Any distributed development-signed release is labeled as such; it is not owner production signing. **If Android reports a signature mismatch, do not uninstall or clear data. Use the original signing key for a data-preserving update.** Models, chats and imported data are private app data.
 
+### Personal-use Android 11–13 screen reading
+
+Build with `./gradlew -PpersonalScreenReading=true :app:assembleDebug`. Omitting the property (or using any value other than `true`) keeps the override unavailable. The property is deliberately not saved in `gradle.properties`. A personal APK is not device-locked: do not distribute it as a normal release.
+
+On the phone, open **Capability setup → Enable personal-use screen reading**, accept the protected-window limitation, then **Review Screen assistant** to enable its Android accessibility service. Consent starts off, is stored only on the device, and can be revoked in Capability setup. Tap the bubble only on harmless screens. Password, filled-editable, app-blocklist and window-transition checks remain best-effort; secure-window status is unverified. No screenshot proof is fabricated, no cloud-screen route is added, and screen text is not saved. API 34+ retains the existing capture policy.
+
 ## Start on the phone
 
 1. Install a correctly signed build without erasing the existing app's data.
@@ -60,6 +66,6 @@ The installable debug output uses the builder's development key. Gradle's releas
 
 ## Important limits
 
-Clock handoffs, playback, third-party layouts and native patch loading must be verified on the target phone. **The screen assistant cannot read screens on the Redmi's Android 11**; API 34+ capture code also still needs device validation. Screenshot-to-cloud vision and generated playlists are not implemented. Private-source data is not sent to MCP. Web/MCP connections validate the actual public DNS address list used for HTTPS, retain TLS verification and block redirects/proxies. The web client and app recipes are bounded implementations, not universal automation. Read the detailed limits before treating a roadmap gate as passed.
+Clock handoffs, playback, third-party layouts and native patch loading must be verified on the target phone. **Android 11 screen reading is personal-use only with explicit risk acceptance; normal builds remain blocked.** Neither the legacy override nor API 34+ capture is device-validated. Screenshot-to-cloud vision and generated playlists are not implemented. Private-source data is not sent to MCP. Web/MCP connections validate the actual public DNS address list used for HTTPS, retain TLS verification and block redirects/proxies. The web client and app recipes are bounded implementations, not universal automation. Read the detailed limits before treating a roadmap gate as passed.
 
 See [pack format](docs/phase7-pack-format.md), [flow syntax](docs/phase7-flow-format.md), [QuickJS limits](docs/phase7-quickjs.md), the [optional companion sample](samples/companion/README.md), [third-party dependencies](docs/third-party.md), and [VERIFY checklist](docs/verify-status.md). The original editable icon remains [the violet sentinel](assets/mr-green-violet-sentinel.svg).

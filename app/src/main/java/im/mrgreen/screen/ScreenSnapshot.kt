@@ -15,11 +15,13 @@ object ScreenReadPolicy {
     // Only API 34+ offers window-targeted capture with explicit secure-window rejection.
     const val MIN_SECURE_CAPTURE_SDK = 34
     fun supportsSecureWindowCapture(sdk: Int): Boolean = sdk >= MIN_SECURE_CAPTURE_SDK
+    fun permitsPersonalLegacyRead(sdk: Int, personalBuild: Boolean, consent: Boolean): Boolean =
+        sdk in 30..33 && personalBuild && consent
     private val defaultBlocked = setOf("com.android.settings.password", "com.google.android.apps.authenticator2")
     private val sensitiveWords = Regex("(?i)(password|passcode|pin code|one[- ]time code|otp|credit card|cvv)")
     fun denial(packageName: String?, blocklist: Set<String>, hasAccessibilityWindow: Boolean,
-               secureWindowKnown: Boolean, containsPasswordField: Boolean): String? {
-        if (packageName.isNullOrBlank() || !hasAccessibilityWindow || !secureWindowKnown) return "Can't safely determine which screen is active. Nothing was read."
+               secureWindowKnown: Boolean, containsPasswordField: Boolean, personalLegacyReadAllowed: Boolean = false): String? {
+        if (packageName.isNullOrBlank() || !hasAccessibilityWindow || (!secureWindowKnown && !personalLegacyReadAllowed)) return "Can't safely determine which screen is active. Nothing was read."
         if (packageName in (blocklist + defaultBlocked)) return "Screen reading is blocked for this app. Nothing was read."
         if (containsPasswordField) return "This screen contains a password field. Nothing was read."
         return null

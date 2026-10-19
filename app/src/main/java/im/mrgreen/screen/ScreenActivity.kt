@@ -48,6 +48,10 @@ class ScreenActivity : AppCompatActivity() {
         root.addView(TextView(this).apply { text="${snapshot.packageName.ifBlank { "Unknown app" }} · read ${snapshot.items.size} items · this request only"; textSize=12f })
         status=TextView(this).apply { text=snapshot.blockedReason ?: if(snapshot.readable) "Screen snapshot ready. Nothing is saved." else "No readable screen text was exposed."; setPadding(0,dp(8),0,dp(8)) }
         root.addView(status)
+        if (PersonalScreenConsent.available()) root.addView(TextView(this).apply {
+            text="Personal-use mode · protected-window status is unverified. Screen text stays local. Disable this mode in Capability setup."
+            setPadding(0,dp(8),0,dp(8))
+        })
         val opts=CheckBox(this).apply { text="Screen questions are always local on this device"; isChecked=true; isEnabled=false }
         root.addView(opts)
         lateinit var question: EditText

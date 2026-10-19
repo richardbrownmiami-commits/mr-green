@@ -11,6 +11,21 @@ class ScreenReadPolicyTest {
         assertFalse(ScreenReadPolicy.supportsSecureWindowCapture(33))
         assertTrue(ScreenReadPolicy.supportsSecureWindowCapture(34))
     }
+    @Test fun personalReadRequiresSupportedSdkPersonalBuildAndExplicitConsent() {
+        for(sdk in 26..36) for(personal in listOf(false,true)) for(consent in listOf(false,true)) {
+            assertEquals("sdk=$sdk personal=$personal consent=$consent", sdk in 30..33 && personal && consent,
+                ScreenReadPolicy.permitsPersonalLegacyRead(sdk,personal,consent))
+        }
+    }
+    @Test fun personalRiskAcceptanceIsNotSecureWindowProofAndKeepsOtherDenials() {
+        assertNull(ScreenReadPolicy.denial("ordinary",emptySet(),true,false,false,personalLegacyReadAllowed=true))
+        assertNotNull(ScreenReadPolicy.denial("ordinary",emptySet(),true,false,false))
+        assertNotNull(ScreenReadPolicy.denial(null,emptySet(),true,false,false,true))
+        assertNotNull(ScreenReadPolicy.denial("ordinary",emptySet(),false,false,false,true))
+        assertNotNull(ScreenReadPolicy.denial("blocked",setOf("blocked"),true,false,false,true))
+        assertNotNull(ScreenReadPolicy.denial("com.google.android.apps.authenticator2",emptySet(),true,false,false,true))
+        assertNotNull(ScreenReadPolicy.denial("ordinary",emptySet(),true,false,true,true))
+    }
     @Test fun missingOrUnknownActiveWindowFailsClosed() {
         assertNotNull(ScreenReadPolicy.denial(null, emptySet(), true, true, false))
         assertNotNull(ScreenReadPolicy.denial("pkg", emptySet(), false, true, false))

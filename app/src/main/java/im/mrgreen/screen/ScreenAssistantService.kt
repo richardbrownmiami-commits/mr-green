@@ -66,8 +66,9 @@ class ScreenAssistantService : AccessibilityService() {
 
     private fun captureBeforePanel() {
         if (!busy.compareAndSet(false,true)) return
-        if (Build.VERSION.SDK_INT < ScreenReadPolicy.MIN_SECURE_CAPTURE_SDK) {
-            openDenied("Screen reading is unavailable on Android 11: display screenshots cannot verify this window's privacy. Nothing was read."); return
+        val personalLegacy = PersonalScreenConsent.enabled(this)
+        if (!ScreenReadPolicy.supportsSecureWindowCapture(Build.VERSION.SDK_INT) && !personalLegacy) {
+            openDenied("Screen reading is disabled on this Android version. A personal build and explicit personal-use consent in Capability setup are required. Nothing was read."); return
         }
         val initial = try { rootInActiveWindow } catch (_: Exception) { null }
         val expectedWindow = initial?.windowId ?: -1
@@ -75,6 +76,15 @@ class ScreenAssistantService : AccessibilityService() {
         runCatching { initial?.recycle() }
         if (expectedWindow < 0 || expectedPackage.isNullOrBlank()) { openDenied("No safe active window is available. Nothing was read."); return }
         val expectedEpoch = windowEpoch
+        if (personalLegacy) {
+            // Explicit risk acceptance, NOT evidence that this window is non-secure.
+            captureNodes(expectedWindow, expectedPackage, expectedEpoch, secureCaptureVerified = false)
+            return
+        }
+        // Keep the platform API boundary explicit for lint and future policy changes.
+        if (Build.VERSION.SDK_INT < 34) {
+            openDenied("Secure window capture is unavailable. Nothing was read."); return
+        }
         try {
             takeScreenshotOfWindow(expectedWindow, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
@@ -88,19 +98,24 @@ class ScreenAssistantService : AccessibilityService() {
         } catch (_: Exception) { openDenied("Can't verify whether this window is secure. Nothing was read.") }
     }
 
-    private fun captureNodes(expectedWindow: Int, expectedPackage: String, expectedEpoch: Long) {
+    private fun captureNodes(expectedWindow: Int, expectedPackage: String, expectedEpoch: Long, secureCaptureVerified: Boolean = true) {
         val before = try { rootInActiveWindow } catch (_: Exception) { null }
         val pkg = before?.packageName?.toString()
         val sensitive = before?.let(::hasPassword) ?: false
-        val secureWindowKnown = before != null && before.windowId == expectedWindow && pkg == expectedPackage && windowEpoch == expectedEpoch
-        val denied = ScreenReadPolicy.denial(pkg, blockedPackages(), before != null, secureWindowKnown = secureWindowKnown, containsPasswordField = sensitive)
+        val sameActiveWindow = before != null && before.windowId == expectedWindow && pkg == expectedPackage && windowEpoch == expectedEpoch
+        val personalLegacy = !secureCaptureVerified && PersonalScreenConsent.enabled(this)
+        val denied = ScreenReadPolicy.denial(pkg, blockedPackages(), sameActiveWindow,
+            secureWindowKnown = sameActiveWindow && secureCaptureVerified,
+            containsPasswordField = sensitive, personalLegacyReadAllowed = personalLegacy)
         val snapshot = if (denied != null) ScreenSnapshot(pkg.orEmpty(), System.currentTimeMillis(), emptyList(), denied) else try {
             if (containsPasswordOrSecureEditable(before!!)) throw SensitiveScreenException()
             val items=collect(before)
             val after=try { rootInActiveWindow } catch (_:Exception) { null }
             val afterPkg=after?.packageName?.toString()
             val sameWindow=after!=null && after.windowId==before.windowId
-            val unsafe=after==null || afterPkg!=pkg || !sameWindow || windowEpoch!=expectedEpoch || (after!=null && (hasPassword(after) || containsPasswordOrSecureEditable(after)))
+            val unsafe=after==null || afterPkg!=pkg || !sameWindow || windowEpoch!=expectedEpoch ||
+                (!secureCaptureVerified && !PersonalScreenConsent.enabled(this)) ||
+                (after!=null && (hasPassword(after) || containsPasswordOrSecureEditable(after)))
             runCatching { after?.recycle() }
             if(unsafe) throw SensitiveScreenException()
             ScreenSnapshot(pkg!!, System.currentTimeMillis(), items.take(120))

@@ -1,5 +1,7 @@
 # Mr Green 0.10.1: audit and test report
 
+**Later personal-use exception:** the API 30–33 block described below remains the normal-build default. An owner-requested build flag plus separate local risk acceptance now allows unverified accessibility reads; see the [phone guide](user-guide.md#screen-and-app-recipes). This does not fix protected-window detection or add device-test evidence. The original audit results below describe the audited baseline, not validation of this override.
+
 **0.10.1-audited-preview, versionCode 10.** Changes start from public main `f5530d75fce9becf2a51aa6d35eb85fd5c651afd`. The app remains one **`im.mrgreen`** application for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit `armeabi-v7a` only**. SkillBot was not touched.
 
 **The build, host regressions and package checks pass. No Redmi or other Android device test was run.** Reviewing the repository and passing these checks does not prove that every roadmap feature is complete or that no further bugs remain.

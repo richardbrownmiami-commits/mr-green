@@ -8,12 +8,15 @@ android {
     compileSdk = 36
     buildToolsVersion = "36.0.0"
     ndkVersion = "27.2.12479018"
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
         versionCode = 10
         versionName = "0.10.1-audited-preview"
+        // Exposes device-local consent only; a personal build does not itself authorize reads.
+        buildConfigField("boolean", "PERSONAL_SCREEN_READING", providers.gradleProperty("personalScreenReading").map { (it == "true").toString() }.getOrElse("false"))
         ndk { abiFilters += "armeabi-v7a" }
         externalNativeBuild {
             cmake {

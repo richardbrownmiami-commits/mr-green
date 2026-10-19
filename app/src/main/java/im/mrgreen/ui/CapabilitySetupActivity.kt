@@ -30,7 +30,23 @@ class CapabilitySetupActivity : AppCompatActivity() {
         val accessibilityOn=Settings.Secure.getInt(contentResolver,Settings.Secure.ACCESSIBILITY_ENABLED,0)==1
         if(im.mrgreen.screen.ScreenReadPolicy.supportsSecureWindowCapture(android.os.Build.VERSION.SDK_INT))
             row("Screen assistant",accessibilityOn && CapabilityAccess.containsComponent(enabled,android.content.ComponentName(this,im.mrgreen.screen.ScreenAssistantService::class.java)),"Explicit bubble taps only; password/protected/blocklisted screens are denied.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        else column.addView(TextView(this).apply { text="Screen assistant unavailable: Android 11 cannot verify protected-window capture safely. No screen access is needed. Other capabilities remain available."; setPadding(0,18,0,0) })
+        else if(im.mrgreen.screen.PersonalScreenConsent.available()) {
+            val consent = im.mrgreen.screen.PersonalScreenConsent.enabled(this)
+            column.addView(TextView(this).apply { text="Personal-use screen reading · ${if(consent) "Enabled" else "Off"}\n${im.mrgreen.screen.PersonalScreenConsent.WARNING}"; setPadding(0,18,0,0) })
+            column.addView(Button(this).apply {
+                text=if(consent) "Disable personal-use screen reading" else "Enable personal-use screen reading"
+                setOnClickListener {
+                    if(consent) { im.mrgreen.screen.PersonalScreenConsent.setEnabled(this@CapabilitySetupActivity,false); render() }
+                    else androidx.appcompat.app.AlertDialog.Builder(this@CapabilitySetupActivity)
+                        .setTitle("Personal use only · accept privacy limitation")
+                        .setMessage(im.mrgreen.screen.PersonalScreenConsent.WARNING)
+                        .setNegativeButton("Cancel",null)
+                        .setPositiveButton("I accept · enable locally") { _,_ -> im.mrgreen.screen.PersonalScreenConsent.setEnabled(this@CapabilitySetupActivity,true); render() }.show()
+                }
+            })
+            if(consent) row("Screen assistant",accessibilityOn && CapabilityAccess.containsComponent(enabled,android.content.ComponentName(this,im.mrgreen.screen.ScreenAssistantService::class.java)),"Enable the Android accessibility service separately, then tap the bubble on a harmless screen. Protected-window detection is not guaranteed.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
+        else column.addView(TextView(this).apply { text="Screen assistant unavailable on this Android version in normal builds: protected-window capture cannot be verified safely. Other capabilities remain available."; setPadding(0,18,0,0) })
         row("App recipes",accessibilityOn && CapabilityAccess.containsComponent(enabled,android.content.ComponentName(this,im.mrgreen.recipes.RecipeAccessibilityService::class.java)),"Optional automation. Exact messages need review before sending.") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         val listeners=Settings.Secure.getString(contentResolver,"enabled_notification_listeners").orEmpty()
         row("Notification access",CapabilityAccess.containsComponent(listeners,android.content.ComponentName(this,im.mrgreen.events.GreenNotificationListener::class.java)),"Read selected notification events locally; text retention is opt-in.") { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }

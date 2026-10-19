@@ -51,7 +51,9 @@ Review MIUI Autostart, battery “No restrictions,” Recents lock, pop-up and l
 
 ## Screen and app recipes
 
-**On the target Redmi/Android 11, screen reading is disabled for privacy.** A successful display screenshot cannot verify that a separately read accessibility tree is safe. A bubble tap must show an unavailable/denied result without reading screen contents. This is a known functional gap, not a passed screen-assistant gate. API 34+ uses window-targeted capture and still needs separate device testing.
+**Normal builds keep Android 11–13 screen reading disabled.** The owner-authorized personal build uses `-PpersonalScreenReading=true`, but still starts with consent off. In **Capability setup**, choose **Enable personal-use screen reading**, read and accept the warning, then choose **Review Screen assistant** and enable the Android accessibility service. Tap its bubble on a harmless screen to read once. Choose **Disable personal-use screen reading** to revoke access; later bubble taps must return a denied result. Android service access can also be revoked in Accessibility settings.
+
+**Protected-window status is unverified in personal mode.** A successful display screenshot cannot establish that a separately read accessibility tree is safe, so the override makes no such claim and does not use screenshot success as proof. Password, filled-editable, blocked-app and changed-window checks remain, but custom controls and other sensitive content can escape detection. This is informed personal risk acceptance, not a passed security gate or a feature enabled for normal users. API 34+ keeps its window-targeted capture path and still needs separate device testing.
 
 Screen questions stay **local-only**; screenshot-to-cloud vision is not implemented. No OCR/vision model is added. WhatsApp sends and external AI-app prompts need explicit review; verify the real recipient/text and outcome. Use harmless test content first. A changed/missing control must stop the recipe, not continue guessing.
 
