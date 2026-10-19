@@ -1,0 +1,8 @@
+test_additive_v1_to_v2_preserves_data_and_fts (__main__.StorageSqlTests.test_additive_v1_to_v2_preserves_data_and_fts) ... ok
+test_cache_expiration_and_bounds_sql (__main__.StorageSqlTests.test_cache_expiration_and_bounds_sql) ... ok
+test_cloud_log_is_metadata_only (__main__.StorageSqlTests.test_cloud_log_is_metadata_only) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.017s
+
+OK

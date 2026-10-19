@@ -1,0 +1,11 @@
+test_fts_can_find_an_indexed_message_older_than_2000_rows (__main__.ConversationMemorySqlTests.test_fts_can_find_an_indexed_message_older_than_2000_rows) ... ok
+test_messages_and_index_survive_host_database_close_and_reopen (__main__.ConversationMemorySqlTests.test_messages_and_index_survive_host_database_close_and_reopen) ... ok
+test_recent_recall_excludes_current_and_returns_latest_exchange_in_order (__main__.ConversationMemorySqlTests.test_recent_recall_excludes_current_and_returns_latest_exchange_in_order) ... ok
+test_stale_vector_deletion_predicate_detects_deleted_messages (__main__.ConversationMemorySqlTests.test_stale_vector_deletion_predicate_detects_deleted_messages) ... ok
+test_sync_balances_recent_indexing_with_old_backlog (__main__.ConversationMemorySqlTests.test_sync_balances_recent_indexing_with_old_backlog) ... ok
+test_sync_is_bounded_idempotent_and_does_not_index_system_rows (__main__.ConversationMemorySqlTests.test_sync_is_bounded_idempotent_and_does_not_index_system_rows) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.030s
+
+OK

@@ -1,0 +1,6 @@
+Release uses existing RelWithDebInfo settings: 83 ARMv7 commands; effective optimization counts: {'-O2': 83}
+The check-inference-build.py O3 compiler gate applies to the debug build; release does not meet that O3 gate. No native build settings changed in this memory patch.
+PASS release ELF32 ARM: lib/armeabi-v7a/libc++_shared.so
+PASS release ELF32 ARM: lib/armeabi-v7a/libmrgreen.so
+PASS release ELF32 ARM: lib/armeabi-v7a/libmrgreen_quickjs.so
+PASS release ELF32 ARM: lib/armeabi-v7a/libsqlite3x.so

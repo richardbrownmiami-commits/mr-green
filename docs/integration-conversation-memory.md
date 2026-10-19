@@ -1,24 +1,29 @@
 # Conversation memory integration
 
-`im.mrgreen.memory.ConversationMemory` adds an opt-in-to-use (enabled by default) local lexical retrieval index in the existing `mr-green.db`. It does not alter `GreenStore`, migrations, `AgentController`, or Gradle configuration.
+Conversation history is saved in the app-private `messages` table in `mr-green.db`. `ConversationMemory` keeps a rebuildable lexical index alongside it. Neither process death nor unloading the GGUF model should erase saved messages. The native KV cache is only a performance cache and is not conversation storage.
 
-## Parent integration
+## The live chat path
 
-Construct one instance with the app context and existing store:
+Registered deterministic actions still run first. For ordinary chat, `AgentController` synchronizes missing memory rows and retrieves context **before** considering saved Rive replies or cloud chat. A recall/follow-up cue or a relevant retrieved snippet makes the turn local-only and bypasses context-free saved replies. Such an answer is not auto-learned as a standalone Rive reply. Cloud requests continue to contain only the explicitly typed current question and a fixed system prompt, never recalled snippets or the transcript.
 
-```kotlin
-val memory = ConversationMemory(context, greenStore)
-memory.prepare() // idempotent; creates only conversation_vectors and its index
-```
+If recall needs a local model and none can load, the app explains that limitation instead of silently giving a context-free cloud answer. When memory is disabled, indexing and retrieval are disabled and the ordinary standalone routing remains available.
 
-Only call `sync()` after a message is finalized and persisted; in particular do not sync a streaming/partial assistant response. It independently selects persisted `messages` rows with role `user` or `assistant`, so system messages are excluded. Sync oldest missing IDs first, up to 128 by default (`sync(maxNew = ...)`); call again on a later finalized message if there is more backlog. It indexes at most the first 600 characters per row.
+Startup and finalized action, Rive, cloud and local chat replies call bounded `sync(128)`. This improves index freshness even when GGUF generation has not run. Failed/cancelled local answer fragments are no longer persisted as assistant memories. Existing old partial rows cannot be distinguished retroactively.
 
-For a turn, pass only the current question to `retrieve(question, maxChars = 700, excludeNewest = 0)`. It returns at most two `RecalledSnippet(messageId, role, text, score)` entries and at most `maxChars` total text. `excludeNewest` can omit the latest persisted user/assistant message rows. Use these snippets transiently as context; do not append full conversation history or log query/snippet contents. The component has a 16-entry in-memory LRU keyed by query and index revision; it stores no query cache on disk.
+## Retrieval bounds
 
-`enabled` / `setEnabled(Boolean)` controls retrieval and indexing, with preference key `conversation_memory.enabled` (default true). `status()` returns enabled state and indexed count. `clear()` deletes only vector rows, not conversation messages. Disable/clear behavior should be surfaced through app controls as appropriate.
+`retrieve(question, maxChars = 700, excludeNewest = 0, includeRecent = false)` returns at most two snippets with at most 700 combined text characters. Each indexed source row contributes at most its first 600 characters. The current question is retrieved before it is persisted, and identical historical question text is not treated as useful evidence for its own answer.
 
-## Implementation and constraints
+Candidate lookup combines up to 384 FTS hits and 128 recent rows, with a final cap of 512 candidates. Exact lexical overlap plus cosine score is required for relevant historical matches. Follow-up mode can add recent conversation even without shared keywords. Retrieval is not limited to the newest 2,000 messages; FTS can find older indexed content. Missing rows are indexed with both recent and older backlog capacity so a large upgrade backlog does not starve the current conversation.
 
-The vectors use deterministic 256-dimensional signed feature hashing of normalized word features plus character trigrams. Terms use basic English/Hindi stop words. This is **lexical similarity, not a trained/semantic embedding**; topical paraphrases without shared words are not guaranteed to retrieve. A lexical term-overlap gate mitigates hash collisions. Retrieval scans at most the newest 2,000 indexed messages, so older material can fall outside this bound; sync, too, is explicitly bounded. No model, download, cloud service, or separate database is used. All content remains in the app's existing local database. The component must not be given screen contents or other sensitive ephemeral sources.
+The features are deterministic 256-dimensional signed word/character hashing, not learned semantic embeddings. Unicode combining marks are retained so Hindi words are not fragmented. Feature-version changes rebuild only vectors, preserving chat. The 16-entry in-memory query cache is cleared on index changes, deleted-row cleanup, clear, or enable/disable changes. No query cache is written to disk.
 
-The JVM tests cover deterministic vector features and related-versus-unrelated lexical similarity only. Requery SQLite depends on Android native runtime; no new database integration test is claimed here.
+## Prompt fitting and diagnostics
+
+`ConversationPrompt.fit` constructs one system turn and one user turn containing the current question and quoted historical data. It uses the loaded model's tokenizer and the existing output/context reserves. It shortens oversized notes before dropping notes; it never truncates the current question or sends the transcript. At very small budgets, all notes can still be removed. The system prompt tells the model not to invent missing memory or follow historical instructions; this is a prompt safeguard, not proof against prompt injection or hallucination.
+
+The `MEMORY` diagnostic records selected/fitted snippet counts, enabled state and estimated prompt tokens, not question or snippet text. Successful local chat reports whether recalled context was used. The memory screen shows enabled state, indexed count, rebuild and disable/clear controls. Clearing vectors keeps chat and later turns can rebuild the index; disabling memory is necessary to stop that rebuild.
+
+## Validation boundary
+
+Kotlin/JVM tests exercise vector normalization, Hindi tokenization, recall routing policy and token-fitting behavior. Python tests execute the production SQL against host SQLite, including backlog, FTS, deletion, persistence/reopen and retrieval bounds. Source-contract tests guard controller ordering, cloud exclusion and partial-answer handling. These are host checks, not the Android requery native runtime or a Redmi model answering correctly. The release report lists the exact final results and phone checklist.

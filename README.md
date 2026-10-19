@@ -2,7 +2,7 @@
 
 An offline-first Android assistant for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit ARMv7**. This repository now contains one integrated app spanning the root [roadmap](plan.md), including the previously missing phase modules. Existing gateway, GGUF chat, Rive replies and plugin features are retained. SkillBot is not part of this repository and was not changed.
 
-**Version: 0.10.2-routing-preview.** The [Phase 3 routing fix](docs/phase3-routing-fix.md) corrects deterministic phrase/slot misses and keeps recognized incomplete actions out of model generation. The earlier repository-wide audit is in the [test report](docs/test-report.md). This is still phone-testing code, not a declaration that every roadmap gate passed. No Redmi installation, phone benchmark, MIUI longevity or third-party-app automation result is claimed. **Normal builds keep screen reading disabled on Android 11–13.** An explicitly built personal-use override permits local, tap-triggered accessibility reads after separate on-device risk acceptance; it cannot reliably detect protected windows. This does not resolve the audit's secure-window limitation. Read the [phone guide](docs/user-guide.md#screen-and-app-recipes).
+**Version: 0.10.3-memory-preview.** The [conversation recall fix](docs/conversation-memory-fix.md) adds memory-aware local routing, recent follow-up context and bounded note fitting. It includes the [Phase 3 routing fix](docs/phase3-routing-fix.md), which keeps recognized incomplete actions out of model generation. The earlier repository-wide audit is in the [test report](docs/test-report.md). This is still phone-testing code, not a declaration that every roadmap gate passed. No Redmi installation, phone benchmark, MIUI longevity or third-party-app automation result is claimed. **Normal builds keep screen reading disabled on Android 11–13.** An explicitly built personal-use override permits local, tap-triggered accessibility reads after separate on-device risk acceptance; it cannot reliably detect protected windows. This does not resolve the audit's secure-window limitation. Read the [phone guide](docs/user-guide.md#screen-and-app-recipes).
 
 ## What is integrated
 
@@ -24,7 +24,7 @@ All these modules share the existing database, application identity, engine queu
 
 ### Fast local conversation memory
 
-Local chat no longer replays the whole transcript. It sends the current question with at most two relevant earlier snippets, trimmed to the loaded model's token budget. An app-private lexical-vector index uses deterministic word/character features and cosine ranking; it is **not a neural embedding model**, adds no second model, and can miss paraphrases. Native KV caching reuses identical prompt prefixes. **No recalled conversation snippets or old transcript are added to cloud requests.** Open the conversation-memory screen to disable or clear the index. Speed still needs measurement on the phone.
+Local chat sends the current question with at most two short historical snippets, not the transcript. Follow-ups can use the latest exchange without shared keywords; relevant older matches use a persistent app-private lexical index. Oversized notes are shortened to fit the model budget. **Recall-dependent turns bypass standalone saved/cloud replies and require the local GGUF model; no recalled snippets or old transcript are added to cloud requests.** The word/character index is **not a neural embedding model**, adds no second model, and can still miss older paraphrases. Native KV caching only reuses identical prompt prefixes. Open the memory screen to inspect, disable or clear the index; chat remains saved when vectors are cleared. See the [integration contract](docs/integration-conversation-memory.md). Speed and actual answer quality still need phone measurement.
 
 ## Build
 
@@ -41,6 +41,8 @@ python3 scripts/check-inference-build.py app/.cxx/Debug/*/armeabi-v7a/compile_co
 python3 scripts/audit-phase7.py --integrated app/build/outputs/apk/debug/app-debug.apk
 python3 scripts/check-phase2-storage.py
 python3 scripts/check-integrated-storage.py
+python3 scripts/test_conversation_memory_sql.py
+python3 scripts/check-conversation-wiring.py
 python3 -m pytest -q tests/extensions
 bash scripts/test-quickjs-host.sh
 ```

@@ -24,4 +24,16 @@ class VectorFeaturesTest {
         assertTrue(VectorFeatures.terms("and the is") .isEmpty())
         assertEquals(0.0, VectorFeatures.cosine(VectorFeatures.encode("and the"), VectorFeatures.encode("the and")), 0.0)
     }
+
+    @Test fun hindiCombiningMarksRemainAttachedToTheirWord() {
+        val composed = "किताब"
+        val decomposed = java.text.Normalizer.normalize(composed, java.text.Normalizer.Form.NFD)
+        assertEquals(setOf(composed), VectorFeatures.terms(decomposed))
+        assertEquals(1.0, VectorFeatures.cosine(VectorFeatures.encode(composed), VectorFeatures.encode(decomposed)), 1e-6)
+    }
+
+    @Test fun hindiStopWordsDoNotEraseUsefulQueryTerms() {
+        assertEquals(setOf("किताब"), VectorFeatures.terms("मेरी किताब कहाँ है"))
+        assertTrue(VectorFeatures.terms("और का की है हैं में") .isEmpty())
+    }
 }
