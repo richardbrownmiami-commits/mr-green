@@ -25,8 +25,9 @@ set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "" FORCE)
 set(GGML_BACKEND_DL OFF CACHE BOOL "" FORCE)
 set(GGML_CPU_ARM_ARCH "armv7-a" CACHE STRING "" FORCE)
 # Debug otherwise compiles the entire inference engine without optimization.
-# Keep debugging and assertions, but optimize every native dependency too.
-add_compile_options("$<$<CONFIG:Debug>:-O3>" -mfpu=neon -mfloat-abi=softfp)
+# Keep debugging and assertions, and consistently optimize every native dependency
+# in Debug and RelWithDebInfo (Android release), not the inherited release -O2.
+add_compile_options(-O3 -mfpu=neon -mfloat-abi=softfp)
 set(LLAMA_VENDOR_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/llama.cpp")
 if(NOT EXISTS "${LLAMA_VENDOR_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "Pinned llama.cpp missing. Run scripts/fetch-llama.sh")

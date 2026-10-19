@@ -38,7 +38,7 @@ class RoadmapRuntime(private val app: GreenApp) {
         LearningActivityBridge.runtime = learning
         im.mrgreen.knowledge.KnowledgeActivity.runtime = knowledge
         ScreenAssistantBridge.answerProvider = ScreenAnswerProvider { prompt, _ ->
-            // Screen context can contain P2 data. Keep it local even when cloud chat is enabled.
+            // Screen context can contain private data. All model routes stay on-device.
             AgentController.answerContext(app, prompt, localOnly = true, category = "screen")
         }
         ScreenAssistantBridge.actionConfirmer = ScreenActionConfirmer { action, done ->
@@ -84,9 +84,7 @@ class RoadmapRuntime(private val app: GreenApp) {
         knowledge.execute(request)?.let { return it }
         if (request.trim().startsWith("{")) im.mrgreen.recipes.RecipeRuntime.execute(request)?.let { return it }
         // No model is invoked automatically here. Only approved routines are eligible.
-        val old = learning.plannerGateway
-        learning.plannerGateway = null
-        val reused = try { learning.execute(request.take(4000)) } finally { learning.plannerGateway = old }
+        val reused = learning.execute(request.take(4000))
         if (reused != null) {
             val document = JSONObject(reused)
             if (document.optString("status") == "approved_skill") {

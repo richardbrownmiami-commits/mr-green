@@ -13,8 +13,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 12
-        versionName = "0.10.3-memory-preview"
+        versionCode = 13
+        versionName = "0.10.4-local-identity-preview"
         // Exposes device-local consent only; a personal build does not itself authorize reads.
         buildConfigField("boolean", "PERSONAL_SCREEN_READING", providers.gradleProperty("personalScreenReading").map { (it == "true").toString() }.getOrElse("false"))
         ndk { abiFilters += "armeabi-v7a" }
@@ -76,7 +76,7 @@ val generateSelfManual by tasks.registering {
     doLast {
         val root=generatedManual.get().asFile.resolve("self_manual").apply { mkdirs() }
         val pages=linkedMapOf(
-            "architecture" to "Mr Green uses one serialized engine queue and one local GGUF model. Deterministic registered actions precede saved replies and optional cloud chat. Plugins use bounded flows and QuickJS. User messages interrupt idle maintenance; no AI runs for each event.",
+            "architecture" to "Mr Green uses one serialized engine queue and one local GGUF model. Deterministic registered actions and validated local identity data precede saved replies and local generation. All model paths are local only; unavailable GGUF never falls back to cloud. Editable identity data is not GGUF weight training. Plugins use bounded flows and QuickJS. User messages interrupt idle maintenance; no AI runs for each event. No dedicated cloud maintenance route exists.",
             "privacy" to "Screen snapshots, notifications, call logs and private documents remain local. Screen answers are ephemeral and always local. Remote MCP accepts only explicitly reviewed user-typed public arguments. Credentials never enter logs, exports or packs.",
             "doctor-limits" to "Doctor changes are data only. No identity, permission, code, tool registry or risk changes. Typed proposals require whitelist checks, at most ten rows, incident improvement and unchanged golden dry runs, then explicit approval. Unsupported changes fail closed. Undo restores stored rows; snapshots are separate backups.",
             "miui" to "Android 11 and MIUI may suspend background work. Review autostart, battery restrictions and pop-up permissions manually. The app never grants its own special access. Clock setup opens external confirmation and is not proof an alarm exists. Phone performance and longevity acceptance remain device tests.",

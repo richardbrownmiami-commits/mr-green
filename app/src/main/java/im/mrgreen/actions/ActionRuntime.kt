@@ -89,7 +89,7 @@ private val library = listOf(
  Match("bluetooth","device.bluetooth",90,listOf("bluetooth settings","turn on bluetooth","turn off bluetooth","enable bluetooth","disable bluetooth","bluetooth chalu")),
  Match("brightness","device.brightness",90,listOf("brightness settings","change brightness","screen brightness","display settings","brightness badhao")),
  Match("volume","device.volume",90,listOf("volume settings","sound settings","change volume","volume badhao","ringer settings","change ringer volume")),
- Match("battery","device.battery",95,listOf("battery level","battery status","how much battery","battery kitni","check battery")),
+ Match("battery","device.battery",95,listOf("battery level","battery status","how much battery","battery kitni","check battery","how is your energy","how much energy do you have","is your lifeline running low")),
  Match("airplane","device.airplane",90,listOf("airplane mode","flight mode","wireless settings","airplane chalu")),
  Match("settings","device.settings",81,listOf("open settings","phone settings","system settings","settings kholo","settings please","launch settings")),
  Match("location","device.location",90,listOf("location settings","gps settings","location services","location chalu")),
@@ -254,7 +254,13 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         }
         "timer.set" -> { val seconds=a.getInt("seconds"); if(seconds<1 || seconds>86400) ToolResult(false,"Timer must be between 1 second and 24 hours.") else { val i=Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH,seconds).putExtra(AlarmClock.EXTRA_MESSAGE,a.optString("label","Mr Green timer")).putExtra(AlarmClock.EXTRA_SKIP_UI,false).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No timer app is available.") else { context.startActivity(i); ToolResult(true,"Opened timer setup for ${seconds}s; please confirm it in the clock app.", verified = false) } } }
         "app.open" -> openApp(a.getString("name"))
-        "device.battery" -> { val b=context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)); val level=b?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1) ?: -1; val scale=b?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,100) ?: 100; if(level<0) ToolResult(false,"Battery status is unavailable.") else ToolResult(true,"Battery is ${(level*100f/scale).roundToInt()}%.") }
+        "device.battery" -> {
+            val reading = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val percent = batteryPercent(reading?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1,
+                reading?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1)
+            if (percent == null) ToolResult(false, "Battery status is unavailable.")
+            else ToolResult(true, "Battery is $percent%.")
+        }
         else -> openSettings(id)
     }
     private fun listNotes(): ToolResult = try {
@@ -385,3 +391,7 @@ private object Arithmetic {
         fun take(c:Char):Boolean {ws();if(i<s.length&&s[i]==c){i++;return true};return false}
     }
 }
+
+/** Invalid or absent Android readings are not a guessed percentage. */
+internal fun batteryPercent(level: Int, scale: Int): Int? =
+    if (scale <= 0 || level !in 0..scale) null else (level * 100.0 / scale).roundToInt()

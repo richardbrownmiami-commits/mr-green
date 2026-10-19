@@ -1,0 +1,35 @@
+PASS app/build/outputs/apk/debug/app-debug.apk: armeabi-v7a only (4 libraries)
+  lib/armeabi-v7a/libc++_shared.so
+  lib/armeabi-v7a/libmrgreen.so
+  lib/armeabi-v7a/libmrgreen_quickjs.so
+  lib/armeabi-v7a/libsqlite3x.so
+PASS app/build/outputs/apk/release/app-release-unsigned.apk: armeabi-v7a only (4 libraries)
+  lib/armeabi-v7a/libc++_shared.so
+  lib/armeabi-v7a/libmrgreen.so
+  lib/armeabi-v7a/libmrgreen_quickjs.so
+  lib/armeabi-v7a/libsqlite3x.so
+PASS /home/ubuntu/output/mr-green-0.10.4-armv7-development-signed.apk: armeabi-v7a only (4 libraries)
+  lib/armeabi-v7a/libc++_shared.so
+  lib/armeabi-v7a/libmrgreen.so
+  lib/armeabi-v7a/libmrgreen_quickjs.so
+  lib/armeabi-v7a/libsqlite3x.so
+PASS: 83 native compile commands use ARMv7 Android and effective -O3
+PASS: ELF32 ARM lib/armeabi-v7a/libc++_shared.so
+PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen.so
+PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen_quickjs.so
+PASS: ELF32 ARM lib/armeabi-v7a/libsqlite3x.so
+Packaging/compile checks passed; Android 11 phone execution remains unverified.
+PASS: 83 native compile commands use ARMv7 Android and effective -O3
+PASS: ELF32 ARM lib/armeabi-v7a/libc++_shared.so
+PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen.so
+PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen_quickjs.so
+PASS: ELF32 ARM lib/armeabi-v7a/libsqlite3x.so
+Packaging/compile checks passed; Android 11 phone execution remains unverified.
+PASS: tracked/candidate source scan found no supported credential patterns or configured API values
+PASS: app-debug.apk: credential-pattern scan, no private/model assets, ARMv7-only QuickJS packaging
+PASS: im.mrgreen, Android target 30/min 26, reviewed permission set, non-exported plugin UI, backup disabled
+LIMITATION: heuristic static scan and host checks do not establish Redmi A25/A26 acceptance.
+PASS: tracked/candidate source scan found no supported credential patterns or configured API values
+PASS: mr-green-0.10.4-armv7-development-signed.apk: credential-pattern scan, no private/model assets, ARMv7-only QuickJS packaging
+PASS: im.mrgreen, Android target 30/min 26, reviewed permission set, non-exported plugin UI, backup disabled
+LIMITATION: heuristic static scan and host checks do not establish Redmi A25/A26 acceptance.

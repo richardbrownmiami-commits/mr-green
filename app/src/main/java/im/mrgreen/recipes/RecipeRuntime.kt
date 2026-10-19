@@ -11,11 +11,9 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
 /** Request JSON: {"recipe":"whatsapp.send","recipient":"...","message":"..."};
- * {"recipe":"meta.prompt"|"gemini.prompt","prompt":"..."}; {"recipe":"wifi.settings"}. */
+ * {"recipe":"wifi.settings"}. External AI-app conversation routes are disabled. */
 object RecipeRuntime {
     private const val WHATSAPP = "com.whatsapp"
-    private const val GEMINI = "com.google.android.apps.bard"
-    private const val META_AI = "com.facebook.katana"
     private const val TIMEOUT_MS = 12_000L
     @Volatile internal var service: RecipeAccessibilityService? = null
     @Volatile var confirmation: (suspend (String, String) -> Boolean)? = null
@@ -24,6 +22,9 @@ object RecipeRuntime {
     suspend fun execute(request: String): String? {
         val j = try { JSONObject(request) } catch (_: Exception) { return null }
         val recipe = j.optString("recipe")
+        // Check before touching an accessibility root or launching a third-party app.
+        if (recipe in setOf("meta.prompt", "gemini.prompt", "meta.result", "gemini.result"))
+            return "External AI conversation recipes are disabled. Use a local GGUF model; no prompt was entered and no result was read."
         val context = service ?: return "Accessibility bridge is disconnected. Enable Mr Green Recipes accessibility service; nothing was done."
         return try {
             when (recipe) {
@@ -44,30 +45,6 @@ object RecipeRuntime {
                         if (!edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message) })) return@withTimeout "Could not fill message field. Nothing was sent."
                         val exact = root.findButton(setOf("send", "send message")) ?: return@withTimeout "Send control not found. Message is prepared but was NOT sent; review WhatsApp."
                         if (!exact.performAction(AccessibilityNodeInfo.ACTION_CLICK)) "Send action failed; message may remain unsent. Check WhatsApp." else "Send was requested in WhatsApp. Verify delivery in the app."
-                    }
-                }
-                "meta.prompt", "gemini.prompt" -> {
-                    val prompt = j.optString("prompt").trim(); if (!RecipePolicy.validPrompt(prompt)) return "Prompt required (maximum 2,000 characters)."
-                    val pkg = if (recipe == "gemini.prompt") GEMINI else META_AI
-                    context.openPackage(pkg) ?: return "Target AI app is not installed. Nothing was submitted."
-                    withTimeout(TIMEOUT_MS) {
-                        val root = context.awaitRoot(pkg)
-                        val expectedLabels = if (recipe == "gemini.prompt") listOf("Gemini") else listOf("Meta AI")
-                        if (!root.hasAnyLabel(expectedLabels)) return@withTimeout "Expected AI composer label was not found in the validated app. Nothing was submitted."
-                        val edit = root.findEditable() ?: return@withTimeout "Expected AI app is open, but no prompt field was found. Nothing was submitted."
-                        if (!edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, prompt) })) return@withTimeout "Could not fill prompt field. Nothing was submitted."
-                        "Prompt entered in the validated app. Review it and tap Send yourself; this recipe never submits AI prompts."
-                    }
-                }
-                "meta.result", "gemini.result" -> {
-                    val pkg = if (recipe == "gemini.result") GEMINI else META_AI
-                    context.openPackage(pkg) ?: return "Target AI app is not installed. Nothing was read."
-                    withTimeout(TIMEOUT_MS) {
-                        val root = context.awaitRoot(pkg)
-                        val title = if (recipe == "gemini.result") "Gemini" else "Meta AI"
-                        if (!root.hasAnyLabel(listOf(title))) return@withTimeout "Expected AI app label was not found. Nothing was read."
-                        val text = root.visibleText().filter { it.length >= 3 && !it.equals(title, true) }.takeLast(30)
-                        if (text.isEmpty()) "No readable AI result was found on the validated screen." else "Visible text from $title (review for completeness):\n" + text.joinToString("\n").take(4000)
                     }
                 }
                 "wifi.settings" -> {

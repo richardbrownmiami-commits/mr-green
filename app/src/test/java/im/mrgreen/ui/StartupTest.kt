@@ -41,7 +41,7 @@ class StartupTest {
         controller.destroy()
     }
 
-    @Test fun modeBadgeOpensCloudSettingsInTheSameApp() {
+    @Test fun modeBadgeStaysLocalAndCannotOpenCloudSettings() {
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         controller.get().getPreferences(0).edit().putBoolean("onboarding_seen", true).commit()
         controller.create()
@@ -55,9 +55,24 @@ class StartupTest {
         val activity = controller.get()
         val badge = findBadge(activity.window.decorView)
         assertNotNull(badge)
-        assertTrue(badge!!.performClick())
-        assertEquals(CloudActivity::class.java.name,
-            org.robolectric.Shadows.shadowOf(activity).nextStartedActivity.component?.className)
+        assertFalse(badge!!.isClickable)
+        assertFalse(badge.performClick())
+        assertNull(org.robolectric.Shadows.shadowOf(activity).nextStartedActivity)
+        controller.destroy()
+    }
+
+    @Test fun overviewOpensTheLocalIdentityEditor() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.get().getPreferences(0).edit().putBoolean("onboarding_seen", true).commit()
+        controller.create()
+        controller.get().findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(im.mrgreen.R.id.bottom_navigation)
+            .selectedItemId = im.mrgreen.R.id.tab_panel
+        val button = allViews(controller.get().window.decorView)
+            .filterIsInstance<com.google.android.material.button.MaterialButton>()
+            .single { it.text.toString() == "Local identity & help data" }
+        assertTrue(button.performClick())
+        assertEquals(im.mrgreen.identity.IdentityActivity::class.java.name,
+            org.robolectric.Shadows.shadowOf(controller.get()).nextStartedActivity.component?.className)
         controller.destroy()
     }
 

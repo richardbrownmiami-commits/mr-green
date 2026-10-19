@@ -325,98 +325,16 @@ class GatewayClient @JvmOverloads constructor(
         }
         return ready.map { tryChat(it, onToken) }
     }
-    @Synchronized fun discoverModels(): List<String> {
-        cancelled.set(false)
-        if (!settings.enabled) return failModels("CLOUD_DISABLED")
-        if ("models" in settings.localOnlyCategories) return failModels("CATEGORY_LOCAL_ONLY")
-        if (!isNetworkAvailable()) return failModels("OFFLINE")
-        val key = currentKey() ?: return failModels("KEY_MISSING")
-        val url = validBase(settings.baseUrl)?.plus("/models") ?: return failModels("INVALID_BASE_URL")
-        return try {
-            auditSend("P0", "models", 0)
-            if (cancelled.get() || !settings.enabled) return failModels("CANCELLED")
-            val response = transport.get(url, key)
-            if (cancelled.get() || !settings.enabled) return failModels("CANCELLED")
-            observe("*", response)
-            if (response.code !in 200..299) return failModels("MODELS_HTTP_${response.code}")
-            val data = JSONObject(response.body).optJSONArray("data") ?: JSONArray()
-            (0 until data.length()).mapNotNull { index -> data.optJSONObject(index)?.optString("id")?.takeIf { it.matches(Regex("[A-Za-z0-9._:/-]{1,200}")) } }.sorted()
-        } catch (_: Exception) { failModels("MODELS_NETWORK") }
-    }
+    /** Legacy compatibility API, intentionally inert regardless of saved preferences.
+     * There is no cloud maintenance exception, upload, cache read, retry or discovery.
+     */
+    @Synchronized fun discoverModels(): List<String> = failModels("LOCAL_ONLY")
     private fun failModels(reason: String): List<String> { lastReason = reason; return emptyList() }
-    internal fun isCloudAvailable(): Boolean = settings.enabled && currentKey() != null && isNetworkAvailable()
+    internal fun isCloudAvailable(): Boolean = false
 
+    @Suppress("UNUSED_PARAMETER")
     @Synchronized fun tryChat(request: GatewayRequest, onToken: (String) -> Unit): GatewayResult? {
-        cancelled.set(false)
-        lastReason = null
-        if (request.privacyClass == PrivacyClass.P2 || request.sensitiveSource != null) return fail("P2_BLOCKED")
-        if (request.privacyClass == PrivacyClass.P1 && !request.userInitiated) return fail("P1_REQUIRES_USER")
-        if (request.category !in allowedCategories) return fail("CATEGORY_BLOCKED")
-        if (request.category in settings.localOnlyCategories) return fail("CATEGORY_LOCAL_ONLY")
-        if (!settings.enabled) return fail("CLOUD_DISABLED")
-        if (!isNetworkAvailable()) return fail("OFFLINE")
-        val base = validBase(settings.baseUrl) ?: return fail("INVALID_BASE_URL")
-        val key = currentKey() ?: return fail("KEY_MISSING")
-        if (request.turns.isEmpty() || request.turns.none { it.role == "user" } ||
-            request.turns.any { it.content.length > 100_000 || it.role !in setOf("system", "user", "assistant") }) return fail("INVALID_REQUEST")
-        if (request.turns.any { GatewayRedactor.containsTypedSecret(it.content) }) return fail("SENSITIVE_CONTENT_BLOCKED")
-        val model = (if (request.smart) settings.smartModel else settings.fastModel)
-            .takeIf { it.isNotBlank() && it.matches(Regex("[A-Za-z0-9._:/-]{1,200}")) } ?: return fail("MODEL_UNSET")
-        val redacted = request.turns.map { ChatTurn(it.role, GatewayRedactor.redact(it.content, request.contactNames, request.notificationBodies)) }
-        val cacheKey = if (request.privacyClass == PrivacyClass.P0) hash("$base|$model|${request.category}|${request.jsonMode}|" + redacted.joinToString("\n") { "${it.role}:${it.content}" }) else null
-        if (cacheKey != null) {
-            try { cacheRead?.invoke(cacheKey)?.let { cached -> if (!request.jsonMode || validJson(cached)) return GatewayResult(cached, model = model, fromCache = true) } }
-            catch (_: Exception) { /* Cache is optional; continue to cloud. */ }
-        }
-        synchronized(lock) {
-            val q = refreshedQuota(model)
-            val blocked = q != null && (q.pausedUntil > System.currentTimeMillis() || q.remaining == 0 || q.tokens == 0)
-            val lowForBackground = q != null && !request.userInitiated && ((q.remaining ?: Int.MAX_VALUE) <= 2 || (q.tokens ?: Int.MAX_VALUE) <= 2)
-            if (blocked || lowForBackground) {
-                lastReason = if (blocked) "CIRCUIT_OPEN" else "LOW_QUOTA_DEFERRED"
-                if (!request.userInitiated) {
-                    if (deferred.size < 100) deferred[deferKey(request)] = request.copy(turns = redacted, contactNames = emptyList(), notificationBodies = emptyList())
-                    lastReason = "LOW_QUOTA_DEFERRED"
-                }
-                return null
-            }
-        }
-        val attempts = if (request.jsonMode) 2 else 1
-        for (attempt in 0 until attempts) {
-            if (cancelled.get()) return cancelledResult(model)
-            val messages = redacted.toMutableList()
-            if (request.jsonMode && messages.none { it.role == "system" && it.content.contains("JSON", true) }) {
-                messages.add(0, ChatTurn("system", "Return only a valid JSON object. Do not include markdown fences or explanatory text."))
-            }
-            val body = JSONObject().put("model", model)
-                .put("messages", JSONArray().also { array -> messages.forEach { array.put(JSONObject().put("role", it.role).put("content", it.content)) } })
-                .put("stream", true).put("max_completion_tokens", 256).apply { if (request.jsonMode) put("response_format", JSONObject().put("type", "json_object")) }.toString()
-            try {
-                auditSend(request.privacyClass.name, request.category, body.toByteArray(Charsets.UTF_8).size)
-            } catch (_: Exception) { return fail("AUDIT_FAILED") }
-            try {
-                if (cancelled.get() || !settings.enabled) return cancelledResult(model)
-                val staged = StringBuilder()
-                val response = transport.post("$base/chat/completions", key, body, cancelled) { token ->
-                    if (request.jsonMode) staged.append(token) else onToken(token)
-                }
-                observe(model, response)
-                if (cancelled.get() || !settings.enabled) return cancelledResult(model)
-                if (response.code !in 200..299) return fail(when (response.code) { 429 -> "HTTP_429"; in 500..599 -> "HTTP_5XX"; else -> "HTTP_${response.code}" })
-                if (request.jsonMode && !validJson(response.body)) {
-                    lastReason = "INVALID_JSON"
-                    if (attempt == attempts - 1) return null
-                    continue
-                }
-                if (response.body.isBlank()) return fail("EMPTY_RESPONSE")
-                if (request.jsonMode) onToken(staged.toString())
-                if (cacheKey != null) try { cacheWrite?.invoke(cacheKey, response.body) } catch (_: Exception) { }
-                return GatewayResult(response.body, model = model)
-            } catch (_: Exception) {
-                if (cancelled.get()) return cancelledResult(model)
-                return fail("NETWORK_ERROR")
-            }
-        }
+        lastReason = "LOCAL_ONLY"
         return null
     }
     private fun cancelledResult(model: String): GatewayResult { lastReason = "CANCELLED"; return GatewayResult("", model = model, cancelled = true) }

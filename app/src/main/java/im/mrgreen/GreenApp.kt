@@ -6,6 +6,7 @@ import im.mrgreen.core.GreenLog
 import im.mrgreen.data.GreenStore
 
 class GreenApp : Application() {
+    val identity by lazy { im.mrgreen.identity.IdentityStore(this) }
     val conversationMemory by lazy { im.mrgreen.memory.ConversationMemory(this, store) }
     val roadmap by lazy { im.mrgreen.core.RoadmapRuntime(this) }
     val store by lazy { GreenStore(this) }

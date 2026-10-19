@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
     private fun showChat() {
         start(getString(R.string.app_name),getString(R.string.chat_subtitle))
         orb=OrbView(this).apply { contentDescription=getString(R.string.orb_description) }; heroView=orb; body.addView(orb,LinearLayout.LayoutParams(-1,dp(130)))
-        modeBadge = TextView(this).apply { text=getString(if (AgentController.state.value.mode == "Cloud") R.string.cloud_badge_cloud else R.string.cloud_badge_local, AgentController.state.value.error ?: AgentController.state.value.status); gravity=Gravity.CENTER; textSize=13f; setTextColor(mint); isClickable=true; setOnClickListener { startActivity(Intent(this@MainActivity, CloudActivity::class.java)) } }; body.addView(modeBadge,LinearLayout.LayoutParams(-1,dp(48)))
+        modeBadge = TextView(this).apply { text=getString(R.string.cloud_badge_local, AgentController.state.value.error ?: AgentController.state.value.status); gravity=Gravity.CENTER; textSize=13f; setTextColor(mint) }; body.addView(modeBadge,LinearLayout.LayoutParams(-1,dp(48)))
         body.addView(TextView(this).apply { id=R.id.status_text; text=AgentController.state.value.error ?: AgentController.state.value.status; visibility=View.GONE },LinearLayout.LayoutParams(-1,dp(1)))
         val scroll=ScrollView(this).apply { isFillViewport=true }; transcript=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(8)) }
         scroll.addView(transcript); body.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); refreshTranscript()
@@ -215,8 +215,10 @@ class MainActivity : AppCompatActivity() {
     }
     private fun showPanel() {
         start(getString(R.string.panel_title),getString(R.string.panel_subtitle))
-        card(getString(R.string.runtime_title),"${AgentController.state.value.status}\n${getString(if (application is GreenApp && AgentController.gateway.settings.enabled) R.string.cloud_overview_enabled else R.string.cloud_overview_disabled)}")
-        action(getString(R.string.cloud_open_gateway),getString(R.string.cloud_open_gateway)) { startActivity(Intent(this,CloudActivity::class.java)) }
+        action("Local identity & help data", "Edit, validate, import or export on-device data; no GGUF weight training") {
+            startActivity(Intent(this, im.mrgreen.identity.IdentityActivity::class.java))
+        }
+        card(getString(R.string.runtime_title),"${AgentController.state.value.status}\nInference and context processing stay on this device.")
         action("All capabilities · Phases 3–10", "Actions, screen, learning, Doctor, documents and extensions") { startActivity(Intent(this, RoadmapActivity::class.java)) }
         action("Plugins · Phase 7", "Review, build, run or roll back a local pack") { startActivity(Intent(this, PluginsActivity::class.java)) }
         action("Rive rules & learning", "Import, review and manage safe local Rive rules") { startActivity(Intent(this, RiveActivity::class.java)) }

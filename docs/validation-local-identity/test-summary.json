@@ -1,0 +1,32 @@
+{
+  "Debug": {
+    "tests": 218,
+    "passed": 215,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3,
+    "skipped_tests": [
+      "im.mrgreen.data.GreenStoreTest.cacheExpiresCapsTtlAndBoundsEntries",
+      "im.mrgreen.data.GreenStoreTest.v1UpgradePreservesUserDataFtsAndExistingCloudRows",
+      "im.mrgreen.data.GreenStoreTest.auditRejectsP2AndUnlistedCategory"
+    ],
+    "lint": {
+      "Warning": 323
+    }
+  },
+  "Release": {
+    "tests": 218,
+    "passed": 215,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3,
+    "skipped_tests": [
+      "im.mrgreen.data.GreenStoreTest.cacheExpiresCapsTtlAndBoundsEntries",
+      "im.mrgreen.data.GreenStoreTest.v1UpgradePreservesUserDataFtsAndExistingCloudRows",
+      "im.mrgreen.data.GreenStoreTest.auditRejectsP2AndUnlistedCategory"
+    ],
+    "lint": {
+      "Warning": 323
+    }
+  }
+}

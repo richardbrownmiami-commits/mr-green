@@ -19,7 +19,6 @@ class RecipesActivity : Activity() {
     private lateinit var output: TextView
     private lateinit var recipient: EditText
     private lateinit var message: EditText
-    private lateinit var prompt: EditText
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         RecipeRuntime.confirmation = { title, body -> confirm(title, body) }
@@ -27,12 +26,11 @@ class RecipesActivity : Activity() {
         fun field(hint:String, lines:Int=1)=EditText(this).apply { this.hint=hint; minLines=lines; if(lines>1) gravity=android.view.Gravity.TOP }
         root.addView(TextView(this).apply { text="Confirmed accessibility recipes · experimental"; textSize=20f })
         recipient=field("WhatsApp recipient name exactly as shown")
-        message=field("WhatsApp message",3); prompt=field("Prompt for Meta AI or Gemini",3)
-        root.addView(recipient); root.addView(message); root.addView(prompt)
+        message=field("WhatsApp message",3)
+        root.addView(recipient); root.addView(message)
+        root.addView(TextView(this).apply { text="External AI-app conversation recipes are disabled. All model answers use the local GGUF only." })
         fun button(label:String, action:()->Unit) { root.addView(Button(this).apply { text=label; setOnClickListener { action() } }) }
         button("WhatsApp: review and send…") { runRecipe(JSONObject().put("recipe","whatsapp.send").put("recipient",recipient.text.toString()).put("message",message.text.toString()).toString()) }
-        button("Enter prompt in Meta AI (manual send)") { runRecipe(JSONObject().put("recipe","meta.prompt").put("prompt",prompt.text.toString()).toString()) }
-        button("Enter prompt in Gemini (manual send)") { runRecipe(JSONObject().put("recipe","gemini.prompt").put("prompt",prompt.text.toString()).toString()) }
         button("Open Wi-Fi settings…") { runRecipe("""{"recipe":"wifi.settings"}""") }
         output=TextView(this).apply { text="No recipe has run."; textSize=15f }
         root.addView(output)

@@ -15,15 +15,12 @@ import org.json.JSONObject
 import java.security.MessageDigest
 import java.util.UUID
 
-/** Provider returns a proposed JSON document only; this class never executes model instructions. */
-fun interface PlannerGateway { suspend fun propose(request: String): String }
 data class LearningItem(val id: String, val name: String, val triggers: JSONArray, val steps: JSONArray, val state: String)
 data class DoctorProposal(val id: Long, val operations: JSONArray, val state: String)
 
 class LearningRuntime(context: Context, private val store: GreenStore) {
     private val app = context.applicationContext
     private val db get() = store.writableDatabase
-    @Volatile var plannerGateway: PlannerGateway? = null
     @Volatile var onUserInput: (() -> Unit)? = null
     private val toolValidator: (String, JSONObject) -> Boolean = { tool, args ->
         // Conservative registry bridge: only tools used by the core declarative runtime are accepted;
@@ -43,26 +40,13 @@ class LearningRuntime(context: Context, private val store: GreenStore) {
 
     fun onUserInput() { onUserInput?.invoke() }
 
-    /** AI output is parsed and registry-validated, but deliberately returned as a proposal, never run. */
+    /** Reuse only already-approved local routines. New proposals are drafted explicitly
+     * through AgentController's local-only queue and reviewed in RoadmapActivity.
+     * No injectable remote planner receives an ordinary chat request. */
     suspend fun execute(request: String): String? = withContext(Dispatchers.IO) {
         require(request.isNotBlank() && request.length <= 4000)
         onUserInput()
-        reusable(request)?.let { return@withContext it.toString() }
-        if (!Regex("(?i)^(please )?(plan|set|create|add|open|find|search|show|start|stop|turn|remind|schedule|calculate|convert|remember|forget|send|call|play|pause|run)\\b").containsMatchIn(request.trim())) return@withContext null
-        val raw = plannerGateway?.propose(request) ?: return@withContext null
-        val parsed = try { JSONObject(raw) } catch (_: Exception) { return@withContext null }
-        if (!parsed.keys().asSequence().all { it in setOf("steps", "ask_user") }) return@withContext null
-        val steps = parsed.optJSONArray("steps") ?: return@withContext null
-        if (steps.length() !in 1..20) return@withContext null
-        for (i in 0 until steps.length()) {
-            val step = steps.optJSONObject(i) ?: return@withContext null
-            if (step.keys().asSequence().any { it !in setOf("tool", "args", "verify") }) return@withContext null
-            val tool = step.optString("tool", "")
-            val args = step.optJSONObject("args") ?: JSONObject()
-            if (!toolValidator(tool, args)) return@withContext null
-        }
-        JSONObject().put("status", "validated_proposal").put("steps", steps).put("ask_user", parsed.opt("ask_user"))
-            .put("executed", false).toString()
+        reusable(request)?.toString()
     }
 
     fun recordEpisode(request: String, steps: JSONArray, result: String, success: Boolean) {

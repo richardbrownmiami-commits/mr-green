@@ -30,6 +30,7 @@
         <intent><action android:name="android.intent.action.VIEW" /><data android:mimeType="video/*" /></intent>
     </queries>
     <application android:name="im.mrgreen.GreenApp" android:label="@string/app_name" android:icon="@mipmap/ic_mrgreen" android:roundIcon="@mipmap/ic_mrgreen" android:theme="@style/AppTheme" android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name="im.mrgreen.identity.IdentityActivity" android:exported="false" />
         <activity android:name="im.mrgreen.ui.OnboardingActivity" android:exported="false" />
         <activity android:name="im.mrgreen.ui.CloudActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name="im.mrgreen.ui.PluginsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
