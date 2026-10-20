@@ -256,7 +256,9 @@ object AgentController {
             app.store.addMessage("assistant", ruleReply.text)
             syncConversationMemory()
             val source = if (ruleReply.learned) "Saved local reply · unverified" else "Rive rule reply"
-            mutable.update { it.copy(mode = "Local", status = source + if (ruleReply.typoCorrected) " · typo corrected" else "",
+            val lookupNote = if (ruleReply.questionNormalized) " · question normalized for matching"
+                else if (ruleReply.typoCorrected) " · typo corrected" else ""
+            mutable.update { it.copy(mode = "Local", status = source + lookupNote,
                 streaming = "", refresh = System.currentTimeMillis()) }
             return
         }

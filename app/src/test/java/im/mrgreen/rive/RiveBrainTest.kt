@@ -31,6 +31,30 @@ class RiveBrainTest {
         assertNull(brain.reply("hello"))
         assertEquals(0, brain.status().imported)
     }
+    @Test fun normalizedLookupIsReadOnlyAndRequiresAnExistingAnswer() {
+        val dir = temp.newFolder()
+        val brain = RiveBrain(dir)
+        install(brain, "+ what is engine\n- An existing owner answer.\n")
+        val disk = File(dir, "rules.rive")
+        val bytes = disk.readBytes()
+        val export = brain.exportText()
+        val revision = brain.revision()
+        for (query in listOf("engien kya h?", "wht is enigne")) {
+            val reply = brain.reply(query)!!
+            assertEquals("An existing owner answer.", reply.text)
+            assertTrue(reply.questionNormalized)
+            assertFalse(reply.learned)
+        }
+        assertFalse(brain.reply("what is engine")!!.questionNormalized)
+        assertNull(brain.reply("engine nahi kya hai"))
+        assertNull(brain.reply("battery kya hai"))
+        assertEquals(revision, brain.revision())
+        assertEquals(export, brain.exportText())
+        assertArrayEquals(bytes, disk.readBytes())
+        assertEquals(0, brain.status().learned)
+        assertEquals("An existing owner answer.", RiveBrain(dir).reply("engine kya hai")!!.text)
+    }
+
     @Test fun prepareDoesNotActivateAndReplaceIsLive() {
         val brain = brain()
         val candidate = prepare(brain, "+ hello\n- Hello owner!\n")

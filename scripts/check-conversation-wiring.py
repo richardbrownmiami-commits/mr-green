@@ -17,6 +17,23 @@ class ConversationWiring(unittest.TestCase):
         self.assertIn('deterministicFirst<Unit>', submit)
         self.assertLess(submit.index('app.roadmap.execute'), submit.index('replyWithRulesOrModel(text)'))
 
+    def test_normalization_is_only_inside_rule_lookup(self):
+        submit = SOURCE.split('fun submit(', 1)[1].split('private suspend fun replyWithRulesOrModel', 1)[0]
+        self.assertIn('app.roadmap.execute(text,', submit)
+        self.assertIn('app.rive.reply(text)', CHAT)
+        self.assertIn('app.rive.learn(text,', CHAT)
+        rule_reply = CHAT.split('if (ruleReply != null', 1)[1].split('// A personalized answer', 1)[0]
+        self.assertIn('app.store.addMessage("user", text)', rule_reply)
+        for forbidden in ('RuleQuestionNormalizer', 'RuleQuestionLookup', 'candidate.question'):
+            self.assertNotIn(forbidden, SOURCE)
+        brain = (ROOT / 'app/src/main/java/im/mrgreen/rive/RiveBrain.kt').read_text()
+        reply = brain.split('@Synchronized fun reply(', 1)[1].split('/** Caller must gate', 1)[0]
+        self.assertIn('current.matcher.match(question)', reply)
+        self.assertIn('current.engine.reply("owner", match.trigger)', reply)
+        self.assertNotIn('commit(', reply)
+        self.assertNotIn('learn(', reply)
+        self.assertIn('RuleQuestionLookup((learned + imported).keys)', brain)
+
     def test_retrieval_precedes_saved_replies(self):
         self.assertLess(CHAT.index('conversationMemory.retrieve'), CHAT.index('app.rive.reply'))
         self.assertIn('if (needsMemory) null else app.rive.reply', CHAT)

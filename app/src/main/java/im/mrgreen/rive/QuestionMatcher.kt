@@ -11,8 +11,19 @@ class QuestionMatcher(triggers: Collection<String>) {
     private val aliases = triggers.distinct().mapNotNull { original ->
         normalize(original)?.let { (correctedAlias(it) ?: it) to original }
     }.groupBy({ it.first }, { it.second })
+    private val literals = triggers.distinct().mapNotNull { original ->
+        normalize(original)?.let { it to original }
+    }.groupBy({ it.first }, { it.second })
 
     fun hasEquivalent(question: String): Boolean = normalize(question)?.let { (correctedAlias(it) ?: it) in aliases } == true
+
+    /** New preprocessor candidates must resolve without a second spelling guess. */
+    fun matchLiteral(question: String): Match? {
+        val normalized = normalize(question) ?: return null
+        if ((aliases[normalized]?.size ?: 0) > 1) return null
+        val original = literals[normalized]?.singleOrNull() ?: return null
+        return Match(original, false)
+    }
 
     fun match(question: String): Match? {
         val normalized = normalize(question) ?: return null

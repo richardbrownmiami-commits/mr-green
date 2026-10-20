@@ -14,7 +14,8 @@ import java.util.Locale
 data class PreparedRules internal constructor(val text: String, val count: Int)
 data class RuleStatus(val imported: Int, val learned: Int, val warning: String?)
 data class LearnedRule(val trigger: String, val answer: String)
-data class RuleReply(val text: String, val learned: Boolean, val typoCorrected: Boolean = false)
+data class RuleReply(val text: String, val learned: Boolean, val typoCorrected: Boolean = false,
+                     val questionNormalized: Boolean = false)
 
 class RiveBrain(directory: File) {
     companion object {
@@ -32,7 +33,7 @@ class RiveBrain(directory: File) {
 
     private val storage = AtomicFile(File(directory, "rules.rive"))
     private data class Snapshot(val imported: Map<String, String>, val learned: Map<String, String>,
-                                val engine: RiveScript, val matcher: QuestionMatcher)
+                                val engine: RiveScript, val matcher: RuleQuestionLookup)
     private var snapshot = compile(emptyMap(), emptyMap())
     private var warning: String? = null
     private var revision = 0L
@@ -82,7 +83,7 @@ class RiveBrain(directory: File) {
         val match = current.matcher.match(question) ?: return null
         // No interpreter is mutated while another reply or swap runs. There are no executable tags.
         val reply = current.engine.reply("owner", match.trigger)
-        return RuleReply(reply, match.trigger !in current.imported, match.typoCorrected)
+        return RuleReply(reply, match.trigger !in current.imported, match.typoCorrected, match.questionNormalized)
     }
 
     /** Caller must gate this on explicit learning consent and successful, non-truncated local generation. */
@@ -128,7 +129,7 @@ class RiveBrain(directory: File) {
         // No object handler, subroutine, host tool, network or filesystem capability is registered.
         engine.stream(HEADER + serialize(learned + imported))
         engine.sortReplies()
-        return Snapshot(imported.toMap(), learned.toMap(), engine, QuestionMatcher((learned + imported).keys))
+        return Snapshot(imported.toMap(), learned.toMap(), engine, RuleQuestionLookup((learned + imported).keys))
     }
 
     private fun serialize(rules: Map<String, String>): String = rules.entries.joinToString("") {
