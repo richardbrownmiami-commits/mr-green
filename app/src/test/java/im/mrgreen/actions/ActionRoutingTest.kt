@@ -195,6 +195,8 @@ class ActionRoutingTest {
         assertEquals("app.search", runtime.plan("search apps calculator")!!.getJSONObject(0).getString("tool"))
         assertEquals("device.storage", runtime.plan("storage settings")!!.getJSONObject(0).getString("tool"))
         assertEquals("device.storage_status", runtime.plan("free storage")!!.getJSONObject(0).getString("tool"))
+        // A successful read requires actual capacity evidence, not Robolectric's default zero volume.
+        org.robolectric.shadows.ShadowStatFs.registerStats(context.filesDir.absolutePath, 1_000_000, 500_000, 250_000)
         val storage = org.json.JSONArray().put(org.json.JSONObject().put("tool", "device.storage_status").put("args", org.json.JSONObject()))
         val result = runtime.executePlanResult(storage)
         assertEquals(PlanOutcome.VERIFIED, result.outcome)

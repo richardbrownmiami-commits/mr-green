@@ -226,8 +226,8 @@ object AgentController {
     /** Called only for unmatched requests, on the same serialized owner queue. */
     private suspend fun replyWithRulesOrModel(text: String) {
         // Registered actions already had first refusal. Only validated stable identity/help
-        // keys can reply here; dynamic readings and synthetic Q&A fixtures are excluded.
-        app.identity.directReply(text)?.let { reply ->
+        // keys and exact app-owned conversation defaults reply here; live facts stay in actions.
+        (app.identity.directReply(text) ?: LocalConversation.reply(text, app.identity))?.let { reply ->
             if (cancelled.get()) return
             app.store.addMessage("user", text)
             app.store.addMessage("assistant", reply)

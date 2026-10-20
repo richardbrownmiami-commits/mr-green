@@ -49,6 +49,7 @@ object ActionTools {
         ToolSchema("device.notifications", "Open notification settings", emptyMap()),
         ToolSchema("device.storage", "Open storage settings; user makes changes", emptyMap()),
         ToolSchema("device.storage_status", "Read available storage summary", emptyMap()),
+        ToolSchema("device.system_status", "Read Android version, available RAM and app-volume storage", emptyMap()),
         ToolSchema("model.status", "Read local model readiness status without diagnostics", emptyMap()),
         ToolSchema("diagnostics.read", "Read redacted local diagnostics summary; excludes logs, chat, paths and secrets", emptyMap()),
         ToolSchema("note.search", "Search saved private notes", mapOf("query" to "string")),
@@ -105,6 +106,7 @@ private val library = listOf(
  Match("accessibility","device.accessibility",90,listOf("accessibility settings","open accessibility","accessibility kholo")),
  Match("notifications","device.notifications",90,listOf("notification settings","notifications settings","app notifications")),
  Match("storage_status","device.storage_status",92,listOf("storage status","free storage","available storage","how much storage")),
+ Match("system_status","device.system_status",95,listOf("system status","phone status","device status")),
  Match("storage","device.storage",90,listOf("storage settings","phone storage","manage storage","storage space","internal storage","manage phone storage")),
  Match("date_settings","device.date_settings",90,listOf("date and time settings","time settings","date settings","set date and time","automatic time")),
  Match("app_settings","device.app_settings",85,listOf("application settings","installed apps","manage apps","app settings","manage installed apps","manage application settings"))
@@ -113,6 +115,8 @@ private val library = listOf(
 /** Rules-first local runtime. Compound steps execute sequentially; state changes always remain user-mediated Android UI. */
 class ActionRuntime(private val context: Context, private val store: GreenStore, private val today: () -> LocalDate = { LocalDate.now() }, private val confirmRisk: (String) -> Boolean = { false }) {
     private companion object { val executionMutex = Mutex() }
+    private val lastActionStatus = LastActionStatus()
+    fun jobStatus(request: String): String? = if (LocalStatusRequests.isJobStatus(request)) lastActionStatus.reply() else null
     private fun manualControlRequest(request: String): Boolean = Regex("(?i)^(?:please\\s+)?(?:tap\\s|swipe\\s|scroll\\s|type text\\b|press (?:back|home)\\b|read (?:the )?screen\\b|show (?:the )?ui tree\\b)").containsMatchIn(request.trim())
     private fun shellRequest(request: String): Boolean = Regex("(?i)^(?:please\\s+)?(?:run|execute)\\s+(?:a\\s+)?(?:shell|bash|command|root)\\b").containsMatchIn(request.trim())
     fun plan(request: String): JSONArray? = planDryRun(request)
@@ -122,7 +126,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         if (request.length > 4096) return null
         if (manualControlRequest(request) || shellRequest(request)) return null
         if (isNegated(request)) return null
-        val rewritten = rewrite(request)
+        val rewritten = rewrite(LocalStatusRequests.canonical(request))
         val parts = splitCompound(rewritten)
         if (parts.isEmpty() || parts.size > 16) return null
         val result = JSONArray()
@@ -201,6 +205,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     }
 
     suspend fun execute(request: String, progress: (String)->Unit = {}): String? {
+        jobStatus(request)?.let { return it }
         val steps = plan(request) ?: return clarification(request)
         return executePlan(steps, progress)
     }
@@ -212,6 +217,17 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         executePlanResult(steps, progress, isCancelled = { false })
 
     suspend fun executePlanResult(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult {
+        return try {
+            executeAndRecordPlan(steps, progress, isCancelled).also { lastActionStatus.record(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            lastActionStatus.record(PlanExecutionResult(PlanOutcome.CANCELLED, "Execution was interrupted; earlier actions were not undone."))
+            throw e
+        } catch (_: Exception) {
+            PlanExecutionResult(PlanOutcome.FAILED, "Execution could not finish safely; no completion is confirmed.").also { lastActionStatus.record(it) }
+        }
+    }
+
+    private suspend fun executeAndRecordPlan(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult {
         if (steps.length() !in 1..16) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plans require 1 to 16 steps.")
         val encoded = steps.toString()
         if (encoded.length > 16384) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plan input is too large.")
@@ -284,6 +300,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         "note.list" -> listNotes()
         "note.search" -> searchNotes(a.getString("query"))
         "device.storage_status" -> storageSummary()
+        "device.system_status" -> systemSummary()
         "app.search" -> searchApps(a.getString("query"))
         "model.status" -> { val loaded=im.mrgreen.core.AgentController.state.value.stats.loadedModel != null; ToolResult(true, "Local model loaded: $loaded.") }
         "diagnostics.read" -> { val mem=android.app.ActivityManager.MemoryInfo(); (context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager)?.getMemoryInfo(mem); val v=runCatching { context.packageManager.getPackageInfo(context.packageName,0).versionName }.getOrNull()?.take(32) ?: "unknown"; ToolResult(true, "Diagnostics: app version $v; Android API ${android.os.Build.VERSION.SDK_INT}; ABI ${android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}; memory available ${mem.availMem/1048576} MB; local model loaded ${im.mrgreen.core.AgentController.state.value.stats.loadedModel != null}; no private data or paths exposed.") }
@@ -313,9 +330,22 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         ToolResult(true, if(notes.isEmpty()) "No matching private notes." else "Matching private notes: "+notes.joinToString("; ").take(1200))
     } catch (_:Exception) { ToolResult(false,"Could not search private notes.") }
     private fun storageSummary():ToolResult = try {
-        val stat=android.os.StatFs(context.filesDir.absolutePath); val free=stat.availableBytes/1_073_741_824.0; val total=stat.totalBytes/1_073_741_824.0
-        ToolResult(true,"App data volume: ${"%.1f".format(Locale.ROOT,free)} GB available of ${"%.1f".format(Locale.ROOT,total)} GB.")
+        val stat = android.os.StatFs(context.filesDir.absolutePath)
+        val availableBytes = stat.availableBytes; val totalBytes = stat.totalBytes
+        if (totalBytes <= 0 || availableBytes !in 0..totalBytes) ToolResult(false, "Storage status is unavailable.")
+        else ToolResult(true, "App data volume: ${"%.1f".format(Locale.ROOT, availableBytes / 1_073_741_824.0)} GiB available of ${"%.1f".format(Locale.ROOT, totalBytes / 1_073_741_824.0)} GiB.")
     } catch (_:Exception) { ToolResult(false,"Storage status is unavailable.") }
+    private fun systemSummary(): ToolResult {
+        val memory = try {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+            if (manager == null) null else android.app.ActivityManager.MemoryInfo().also { manager.getMemoryInfo(it) }
+                .takeIf { it.totalMem > 0 && it.availMem in 0..it.totalMem }
+        } catch (_: Exception) { null }
+        val ram = memory?.let { "RAM available ${it.availMem / 1_048_576} MiB of ${it.totalMem / 1_048_576} MiB; Android low-memory flag: ${it.lowMemory}." }
+            ?: "RAM status is unavailable."
+        val storage = storageSummary()
+        return ToolResult(true, "Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT}). $ram ${storage.message} These are current readings, not a full health or job-completion check.")
+    }
     private fun saveNote(text:String):ToolResult {
         val clean=text.trim(); if(clean.length > 2000) return ToolResult(false,"Note is too long (maximum 2000 characters).")
         if(clean.isBlank()) return ToolResult(false,"What should I save in the note?")
@@ -399,6 +429,8 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
                 Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(normalize(it)) + "(?![\\p{L}\\p{N}])").containsMatchIn(s)
             }
             (phrase || arithmetic) &&
+                // New status defaults must not treat a note's literal payload as a status request.
+                (m.tool != "device.system_status" || Regex("^(?:please )?(?:(?:check|show|tell me)(?: the)? )?(?:system|phone|device) status(?: please)?$").matches(s)) &&
                 !(m.tool in setOf("device.app_settings", "device.settings") && Regex("^(?:please )?open app\\s+").containsMatchIn(s)) &&
                 // "what is life" and "what is 5G" remain chat, not malformed calculations.
                 (!math || arithmetic || Regex("^(?:please )?(?:calculate|compute|solve)\\b").containsMatchIn(s) ||
@@ -410,7 +442,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     private fun arguments(tool:String,raw:String):JSONObject? {
         val s=commandText(raw)
         return when(tool){
-            "note.list","model.status","diagnostics.read","device.storage","device.storage_status","clock.time","clock.date","device.wifi","device.bluetooth","device.brightness","device.volume","device.battery","device.airplane","device.settings","device.location","device.accessibility","device.notifications","device.date_settings","device.app_settings" -> JSONObject()
+            "note.list","model.status","diagnostics.read","device.storage","device.storage_status","device.system_status","clock.time","clock.date","device.wifi","device.bluetooth","device.brightness","device.volume","device.battery","device.airplane","device.settings","device.location","device.accessibility","device.notifications","device.date_settings","device.app_settings" -> JSONObject()
             "math.calculate" -> { val expr=extractMath(s) ?: return null; JSONObject().put("expression",expr) }
             "date.add" -> { val n=Regex("(?i)(\\d+)\\s+days?").find(s)?.groupValues?.get(1)?.toIntOrNull() ?: return null; if(n !in 1..36500) return null; JSONObject().put("days",n) }
             "device.flashlight" -> { val on = !Regex("(?i)\\b(off|turn off|torch off)\\b").containsMatchIn(s); JSONObject().put("enabled",on) }

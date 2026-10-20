@@ -24,6 +24,10 @@ Open **Overview → All capabilities · Phases 3–10** in the same `im.mrgreen`
 
 All these modules share the existing database, application identity, engine queue and one local model. The optional `samples/companion` project demonstrates Layer 3; it is an extension example, **not another phase-specific assistant APK**.
 
+### Common conversation and live status without GGUF
+
+Try `hi`, `hello`, `how are you`, `what is your name`, `who is Mr Green`, or `what can you do` for deterministic local replies. `battery`, `time`, `storage` and `system status` read current Android APIs instead of using saved/model answers. `job status` (also `complete job`) reports only the last recorded registered-action result in this app session, distinguishing verified results from handoffs, failures and cancellation; it never marks a job complete. See [examples and evidence limits](docs/local-conversation-status.md). User-authored Rive rules and existing saved data are not rewritten.
+
 ### Fast local conversation memory
 
 Local chat sends the current question with at most two short historical snippets, not the transcript. Follow-ups can use the latest exchange without shared keywords; relevant older matches use a persistent app-private lexical index. Oversized notes are shortened to fit the model budget. **Recall-dependent turns bypass standalone saved replies and require the local GGUF model. All generation routes, including plugin drafting and planner/context requests, are local-only; a missing model reports unavailable rather than using cloud.** The word/character index is **not a neural embedding model**, adds no second model, and can still miss older paraphrases. Native KV caching only reuses identical prompt prefixes. Open the memory screen to inspect, disable or clear the index; chat remains saved when vectors are cleared. See the [integration contract](docs/integration-conversation-memory.md). Speed and actual answer quality still need phone measurement.

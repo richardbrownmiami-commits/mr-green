@@ -71,6 +71,7 @@ class RoadmapRuntime(private val app: GreenApp) {
     suspend fun execute(request: String, isCancelled: () -> Boolean = { false }, progress: (String) -> Unit): String? {
         learning.onUserInput()
         // Recompute deterministic facts before any saved or model-generated reply.
+        actions.jobStatus(request)?.let { return it }
         actions.refreshRules()
         val plan = actions.plan(request)
         if (plan != null) {
