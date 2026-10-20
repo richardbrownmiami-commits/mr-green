@@ -21,7 +21,8 @@ class KnowledgeActivity : AppCompatActivity() {
         val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,20,20,20) }
         root.addView(TextView(this).apply { text="Knowledge · web access is off by default"; textSize=20f })
         val web=Switch(this).apply { text="Allow explicitly requested web/MCP access"; isChecked=!r.localOnly; setOnCheckedChangeListener{_,v->r.localOnly=!v} };root.addView(web)
-        val input=EditText(this).apply { hint="search web … / fetch https://… / ask documents …" };root.addView(input)
+        root.addView(TextView(this).apply { text="Use ask web QUESTION for temporary source-based answers without GGUF or cloud AI. Only your typed question goes to the search website; chat history and screen content stay local. Pages are untrusted claims. Web answers are not saved and clear after 5 minutes or your next message. You can also use ask web https://page | QUESTION." })
+        val input=EditText(this).apply { hint="ask web … / search web … / fetch https://… / ask documents …" };root.addView(input)
         val button=Button(this).apply { text="Run" };root.addView(button)
         val answer=Button(this).apply { text="Answer document question locally" }; root.addView(answer)
         answer.setOnClickListener { lifecycleScope.launch {
@@ -38,7 +39,18 @@ class KnowledgeActivity : AppCompatActivity() {
         progressBar=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); root.addView(progressBar)
         pick.setOnClickListener { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type="*/*"; addCategory(Intent.CATEGORY_OPENABLE); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }, 8102) }
         output=TextView(this).apply { textSize=14f }; val scroll=ScrollView(this).apply { addView(output) };root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        button.setOnClickListener { button.isEnabled=false; lifecycleScope.launch { try { output.text=r.execute(input.text.toString()) ?: "Unrecognized request." } catch(e:Exception) { output.text=e.message ?: "Knowledge request failed." } finally { button.isEnabled=true } } }
+        button.setOnClickListener {
+            val request = input.text.toString()
+            if (WebQuestionParser.parse(request) !is WebQuestionCommand.NotWebQuestion) {
+                if (im.mrgreen.core.AgentController.submit(this, request)) {
+                    input.setText("")
+                    startActivity(Intent(this, im.mrgreen.ui.MainActivity::class.java))
+                } else output.text = "Assistant is busy. Try again after the current request."
+            } else {
+                button.isEnabled=false
+                lifecycleScope.launch { try { output.text=r.execute(request) ?: "Unrecognized request." } catch(e:Exception) { output.text=e.message ?: "Knowledge request failed." } finally { button.isEnabled=true } }
+            }
+        }
         setContentView(root)
     }
     @Deprecated("Use Activity Result API") override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) { super.onActivityResult(requestCode,resultCode,data); if(requestCode==8102 && resultCode==RESULT_OK) { val uri=data?.data ?: return; lifecycleScope.launch { val old=activeRuntime.progress; activeRuntime.progress={ done,total -> runOnUiThread { progressBar.max=total.coerceAtLeast(1); progressBar.progress=done } }; try { output.text=activeRuntime.importUri(uri, queryDisplayName(uri)) } catch(e:Exception) { output.text=e.message ?: "Import failed" } finally { activeRuntime.progress=old; progressBar.progress=0 } } } }

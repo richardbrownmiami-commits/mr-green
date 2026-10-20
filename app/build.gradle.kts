@@ -13,8 +13,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 15
-        versionName = "0.10.6-rive-qa-preview"
+        versionCode = 16
+        versionName = "0.10.7-web-facts-preview"
         // Exposes device-local consent only; a personal build does not itself authorize reads.
         buildConfigField("boolean", "PERSONAL_SCREEN_READING", providers.gradleProperty("personalScreenReading").map { (it == "true").toString() }.getOrElse("false"))
         ndk { abiFilters += "armeabi-v7a" }
@@ -78,6 +78,7 @@ val generateSelfManual by tasks.registering {
         val pages=linkedMapOf(
             "architecture" to "Mr Green uses one serialized engine queue and one local GGUF model. Deterministic registered actions and validated local identity data precede saved replies and local generation. All model paths are local only; unavailable GGUF never falls back to cloud. Editable identity data is not GGUF weight training. Plugins use bounded flows and QuickJS. User messages interrupt idle maintenance; no AI runs for each event. No dedicated cloud maintenance route exists.",
             "privacy" to "Screen snapshots, notifications, call logs and private documents remain local. Screen answers are ephemeral and always local. Remote MCP accepts only explicitly reviewed user-typed public arguments. Credentials never enter logs, exports or packs.",
+            "web-facts" to "Enable explicitly requested web access in Knowledge, then type ask web QUESTION or ask web https://page | QUESTION. Only the typed public question goes to search; no chat history or screen content. Source pages are temporary untrusted data, not instructions. A bounded local OpenNARS core handles only supported simple factual relations; otherwise replies quote relevant source text or report no answer. This path needs no GGUF or cloud AI. Web questions and answers are never saved to SQL chat, memory or learned replies. Clear the temporary answer manually; it also expires after five minutes or the next message.",
             "doctor-limits" to "Doctor changes are data only. No identity, permission, code, tool registry or risk changes. Typed proposals require whitelist checks, at most ten rows, incident improvement and unchanged golden dry runs, then explicit approval. Unsupported changes fail closed. Undo restores stored rows; snapshots are separate backups.",
             "miui" to "Android 11 and MIUI may suspend background work. Review autostart, battery restrictions and pop-up permissions manually. The app never grants its own special access. Clock setup opens external confirmation and is not proof an alarm exists. Phone performance and longevity acceptance remain device tests.",
             "known-fixes" to "Missing permission: open live setup checklist and grant only the needed access. No model: import a compatible ARMv7-supported GGUF and load it. Out of memory: unload and reduce context to 512 and two threads. App layout mismatch: stop recipe and review current UI. Native patches require an independently reviewed owner key, a signed ABI-compatible library and explicit approval; never install unvetted native code."

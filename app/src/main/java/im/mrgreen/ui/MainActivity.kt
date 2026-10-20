@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private var pageJob: kotlinx.coroutines.Job? = null
     private var transcriptJob: kotlinx.coroutines.Job? = null
     private var renderedRefresh = -1L
+    private var renderedWeb: im.mrgreen.core.TemporaryWebExchange? = null
     private var selected = R.id.tab_chat
     private var displayedStream = ""
     private val palette get() = im.mrgreen.extensions.ThemeManager.palette(this)
@@ -102,7 +103,9 @@ class MainActivity : AppCompatActivity() {
                     if (selected == R.id.tab_llama) engineStatus?.text = state.error ?: getString(R.string.engine_live, state.status, state.stats.promptTokPerSec, state.stats.genTokPerSec, state.stats.nCtx)
                     sendButtonIfShown(state.busy, state.generating)
                     if (state.streaming.isNotEmpty()) updateStream(state.streaming)
-                    else if (state.refresh != renderedRefresh) { renderedRefresh = state.refresh; refreshTranscript() }
+                    else if (state.refresh != renderedRefresh || state.temporaryWeb !== renderedWeb) {
+                        renderedRefresh = state.refresh; renderedWeb = state.temporaryWeb; refreshTranscript()
+                    }
                 }
             }
         }
@@ -194,6 +197,14 @@ class MainActivity : AppCompatActivity() {
             if (!::transcript.isInitialized || selected!=R.id.tab_chat) return@launch
             transcript.removeAllViews(); displayedStream=""
             if(rows.isEmpty()) addBubble("assistant",getString(R.string.empty_chat)) else rows.forEach { addBubble(it.role,it.content) }
+            AgentController.state.value.temporaryWeb?.let { exchange ->
+                addBubble("user", exchange.question)
+                addBubble("assistant", exchange.answer + "\n\nTemporary: not saved to chat, SQL memory or learned replies.")
+                transcript.addView(MaterialButton(this@MainActivity).apply {
+                    text = "Clear temporary web answer"
+                    setOnClickListener { AgentController.clearTemporaryWeb() }
+                })
+            }
             val stream = AgentController.state.value.streaming
             if (stream.isNotEmpty()) updateStream(stream)
         }
