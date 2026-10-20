@@ -2,7 +2,7 @@
 
 An offline-first Android assistant for **Redmi 9 M2006C3MII, Android 11/API 30, 32-bit ARMv7**. This repository now contains one integrated app spanning the root [roadmap](plan.md), including the previously missing phase modules. GGUF chat, Rive replies and plugin features are retained; model generation is strictly on-device. SkillBot is not part of this repository and was not changed.
 
-**Version: 0.10.4-local-identity-preview.** Editable local identity/help data and strictly local model routing are described in [the local identity integration notes](docs/local-identity-integration.md). This is data/prompt integration, not GGUF weight training. No cloud model route or dedicated cloud maintenance service is available.
+**Version: 0.10.5-safe-actions-preview.** [Safe local actions and optional manual screen controls](docs/safe-local-actions.md) add bounded app/note search, storage/model status, redacted diagnostics, honest handoffs and visible Stop controls. Selection remains deterministic: no GGUF tool-call loop or shell execution was added. Editable identity/help data remains described in [the local identity integration notes](docs/local-identity-integration.md). No cloud model route or dedicated cloud maintenance service is available.
 
  The [conversation recall fix](docs/conversation-memory-fix.md) adds memory-aware local routing, recent follow-up context and bounded note fitting. It includes the [Phase 3 routing fix](docs/phase3-routing-fix.md), which keeps recognized incomplete actions out of model generation. The earlier repository-wide audit is in the [test report](docs/test-report.md). This is still phone-testing code, not a declaration that every roadmap gate passed. No Redmi installation, phone benchmark, MIUI longevity or third-party-app automation result is claimed. **Normal builds keep screen reading disabled on Android 11–13.** An explicitly built personal-use override permits local, tap-triggered accessibility reads after separate on-device risk acceptance; it cannot reliably detect protected windows. This does not resolve the audit's secure-window limitation. Read the [phone guide](docs/user-guide.md#screen-and-app-recipes).
 
@@ -13,13 +13,13 @@ Open **Overview → All capabilities · Phases 3–10** in the same `im.mrgreen`
 | Roadmap area | Implementation |
 |---|---|
 | 0–2: foundation and local chat | CPU-only llama.cpp/JNI, bundled SQLite/FTS5, chat, model picker, foreground service, diagnostics, editable local identity/help, deterministic routes then local GGUF; cloud generation disabled |
-| 3: actions | Rules-first Understanding Library, typed tool registry, sequential compound plans, time/date/date-offset/math, alarm/timer setup, file-and-DB notes, app launching, battery/settings and permission-gated flashlight |
+| 3: actions | Rules-first Understanding Library, bounded fixed tool registry, immutable sequential plans, time/date/math, alarm/timer handoffs, private note save/list/search, launcher app search/open, battery/storage/model readings, redacted diagnostics, settings handoffs and permission-gated flashlight |
 | 4: events and media | Opt-in notification/call/media observation, private event history, generic proactive alerts, quiet hours/allowlist/rate controls, MediaStore/MX Player/YouTube handoff, audio-state checks, optional reboot restoration |
 | 5: screen assistant | Normal builds fail closed on API 30–33; personal builds require explicit local risk acceptance; API 34+ keeps window-targeted capture. Password/blocklist checks and local Q&A remain; neither path is device-verified |
 | 6: planning, learning and Doctor | Local JSON plan review, approved routine reuse, Learning inbox, typed data-only repair proposals, expected-incident/golden replay, explicit approval, undo, snapshots and staged database restore, metadata-only incident reports, idle maintenance |
 | 7: plugins | Existing bounded flows, QuickJS sandbox, signed `.redpack` validation, review/permissions/200 MiB cap, rollback and safe mode; approved packs can call registered core actions |
 | 8: knowledge | Bounded web search/fetch and recipe cache, TXT/PDF/EPUB import with local citations, FTS retrieval, explicit-public-argument HTTPS MCP JSON-RPC review |
-| 9: accessibility recipes | Explicitly reviewed WhatsApp and an experimental settings-mediated Wi-Fi recipe; external AI-app prompt/result recipes are disabled; mismatches fail closed |
+| 9: accessibility recipes | Confirmed WhatsApp/Wi-Fi recipes with visible Stop and bounded traversal; personal-use manual tree/tap/scroll/swipe/text/Back/Home controls require explicit consent and one-action confirmation; external AI-app routes remain disabled |
 | 10: extensions and polish | Installed-companion signer pinning and exact-argument review; signed ARMv7 engine-patch staging, startup revalidation and crash fallback; voice/theme/wallpaper/Bluetooth controls and live setup checklist |
 
 All these modules share the existing database, application identity, engine queue and one local model. The optional `samples/companion` project demonstrates Layer 3; it is an extension example, **not another phase-specific assistant APK**.
@@ -45,6 +45,7 @@ python3 scripts/check-phase2-storage.py
 python3 scripts/check-integrated-storage.py
 python3 scripts/test_conversation_memory_sql.py
 python3 scripts/check-conversation-wiring.py
+python3 scripts/test-safe-note-search.py
 python3 -m pytest -q tests/extensions
 bash scripts/test-quickjs-host.sh
 ```

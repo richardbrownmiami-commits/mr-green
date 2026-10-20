@@ -175,4 +175,90 @@ class ActionRoutingTest {
         assertEquals(result.message, runtime.executePlan(alarm))
     }
 
+
+    @Test fun executionRejectsUnknownAndExtraArgumentsAndExecutesAllowlistedRead() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication(); val runtime = ActionRuntime(context, GreenStore(context))
+        val invalid = org.json.JSONArray().put(org.json.JSONObject().put("tool", "model.status").put("args", org.json.JSONObject().put("secret", "x")))
+        assertEquals(PlanOutcome.FAILED, runtime.executePlanResult(invalid).outcome)
+        val unknown = org.json.JSONArray().put(org.json.JSONObject().put("tool", "future.dangerous").put("args", org.json.JSONObject()))
+        assertEquals(PlanOutcome.FAILED, runtime.executePlanResult(unknown).outcome)
+        val valid = org.json.JSONArray().put(org.json.JSONObject().put("tool", "diagnostics.read").put("args", org.json.JSONObject()))
+        val result = runtime.executePlanResult(valid)
+        assertEquals(PlanOutcome.VERIFIED, result.outcome)
+        assertTrue(result.message.contains("no private data or paths exposed"))
+    }
+
+    @Test fun noteSearchSchemaIsBoundedAndStorageReadIsNotSettingsHandoff() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication(); val runtime = ActionRuntime(context, GreenStore(context))
+        assertEquals("groceries", runtime.plan("search notes groceries")!!.getJSONObject(0).getJSONObject("args").getString("query"))
+        assertEquals("milk", runtime.plan("find notes milk")!!.getJSONObject(0).getJSONObject("args").getString("query"))
+        assertEquals("app.search", runtime.plan("search apps calculator")!!.getJSONObject(0).getString("tool"))
+        assertEquals("device.storage", runtime.plan("storage settings")!!.getJSONObject(0).getString("tool"))
+        assertEquals("device.storage_status", runtime.plan("free storage")!!.getJSONObject(0).getString("tool"))
+        val storage = org.json.JSONArray().put(org.json.JSONObject().put("tool", "device.storage_status").put("args", org.json.JSONObject()))
+        val result = runtime.executePlanResult(storage)
+        assertEquals(PlanOutcome.VERIFIED, result.outcome)
+        assertTrue(result.message.contains("available of"))
+        val bad = org.json.JSONObject().put("tool", "note.search").put("args", org.json.JSONObject().put("query", "x".repeat(121)))
+        assertTrue(!ActionTools.validate(bad))
+        assertTrue(!ActionTools.validate(org.json.JSONObject().put("tool","date.add").put("args",org.json.JSONObject().put("days",0))))
+        assertTrue(!ActionTools.validate(org.json.JSONObject().put("tool","timer.set").put("args",org.json.JSONObject().put("seconds",86401).put("label","timer"))))
+    }
+
+    @Test fun executionUsesImmutablePlanSnapshotWhenProgressCallbackMutatesInput() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication(); val runtime = ActionRuntime(context, GreenStore(context))
+        val steps = runtime.plan("calculate 2 plus 3 and then calculate 8 minus 4")!!
+        val result = runtime.executePlanResult(steps) { progress ->
+            if (progress.startsWith("Running 1/")) steps.getJSONObject(1).put("tool", "unknown.private.tool")
+        }
+        assertEquals(PlanOutcome.VERIFIED, result.outcome)
+        assertTrue(result.message.contains("5"))
+    }
+
+    @Test fun modelStatusDoesNotExposePrivateRuntimeTelemetry() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication(); val runtime = ActionRuntime(context, GreenStore(context))
+        val plan = runtime.plan("model status")!!
+        val result = runtime.executePlanResult(plan)
+        assertEquals(PlanOutcome.VERIFIED, result.outcome)
+        assertTrue(result.message.startsWith("Local model loaded:"))
+        listOf("context tokens", "prompt tok/s", "generation tok/s", "path", "chat", "diagnostic").forEach { forbidden ->
+            assertTrue("unexpected private detail: $forbidden", !result.message.contains(forbidden, ignoreCase = true))
+        }
+    }
+
+    @Test fun noteFindAndSearchBothProduceTheSameBoundedSearchPlan() {
+        val context = RuntimeEnvironment.getApplication(); val store = GreenStore(context); val runtime = ActionRuntime(context, store)
+        // ARM-only requery JNI cannot execute on this host JVM. The production SQL
+        // is covered by scripts/test-safe-note-search.py; persistence needs phone testing.
+        val find = runtime.plan("find notes bicycle")!!.getJSONObject(0).getJSONObject("args").getString("query")
+        val search = runtime.plan("search notes bicycle")!!.getJSONObject(0).getJSONObject("args").getString("query")
+        assertEquals("bicycle", find); assertEquals(find, search)
+        assertEquals("note.search", runtime.plan("find notes bicycle")!!.getJSONObject(0).getString("tool"))
+        assertEquals("note.search", runtime.plan("search notes bicycle")!!.getJSONObject(0).getString("tool"))
+    }
+
+    @Test fun appAndSettingsActionsHandOffThroughAndroidIntents() = kotlinx.coroutines.runBlocking {
+        val context = RuntimeEnvironment.getApplication(); val runtime = ActionRuntime(context, GreenStore(context))
+        val pmShadow = org.robolectric.Shadows.shadowOf(context.packageManager)
+        val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        val appInfo = android.content.pm.ActivityInfo().apply {
+            packageName = "com.android.camera"; name = "com.android.camera.CameraActivity"
+            applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = "com.android.camera" }
+        }
+        val camera = android.content.pm.ResolveInfo().apply { activityInfo = appInfo }
+        pmShadow.addResolveInfoForIntent(launcher, camera)
+        val settingIntent = android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+        val settingInfo = android.content.pm.ActivityInfo().apply {
+            packageName = "test.settings"; name = "test.settings.WifiActivity"
+            applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = "test.settings" }
+        }
+        pmShadow.addResolveInfoForIntent(settingIntent, android.content.pm.ResolveInfo().apply { activityInfo = settingInfo })
+        val app = runtime.executePlanResult(runtime.plan("open app Camera")!!)
+        assertEquals(PlanOutcome.HANDED_OFF, app.outcome)
+        assertEquals(android.content.Intent.ACTION_MAIN, org.robolectric.Shadows.shadowOf(context).nextStartedActivity.action)
+        val settings = runtime.executePlanResult(runtime.plan("wifi settings")!!)
+        assertEquals(PlanOutcome.HANDED_OFF, settings.outcome)
+        assertEquals(android.provider.Settings.ACTION_WIFI_SETTINGS, org.robolectric.Shadows.shadowOf(context).nextStartedActivity.action)
+    }
+
 }

@@ -18,14 +18,17 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** User-opt-in service. It observes no event text and captures only after an explicit bubble tap. */
 class ScreenAssistantService : AccessibilityService() {
+    companion object { internal var instance: ScreenAssistantService? = null }
     private var window: WindowManager? = null
     private var bubble: View? = null
     private var params: WindowManager.LayoutParams? = null
     private val busy = AtomicBoolean(false)
     private var windowEpoch = 0L
+    @Volatile private var stopped = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this; stopped = false
         window = getSystemService(WINDOW_SERVICE) as WindowManager
         addBubble()
     }
@@ -34,21 +37,34 @@ class ScreenAssistantService : AccessibilityService() {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event?.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) windowEpoch++
     }
-    override fun onInterrupt() { }
-    override fun onDestroy() { removeBubble(); super.onDestroy() }
+    override fun onInterrupt() { stopReading() }
+    override fun onDestroy() { stopped = true; if (instance === this) instance = null; removeBubble(); super.onDestroy() }
+    internal fun stopReading() {
+        stopped = true; windowEpoch++; busy.set(false); removeBubble()
+        im.mrgreen.core.AgentController.cancel()
+        disableSelf()
+    }
 
     private fun addBubble() {
         if (!Settings.canDrawOverlays(this) && Build.VERSION.SDK_INT < 22) return
         val text = TextView(this).apply {
-            this.text = "●"
+            this.text = "Read"
             textSize = 19f; gravity = Gravity.CENTER; contentDescription = "Ask Mr Green about this screen"
             setTextColor(0xffffffff.toInt()); setBackgroundColor(0xff176b45.toInt()); elevation = 10f
             setOnTouchListener(DragTouch())
             setOnClickListener { captureBeforePanel() }
         }
+        val strip = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            addView(text, android.widget.LinearLayout.LayoutParams(dp(54), dp(54)))
+            addView(android.widget.Button(this@ScreenAssistantService).apply {
+                this.text = "STOP"; contentDescription = "Stop Mr Green screen reading and actions"
+                setOnClickListener { im.mrgreen.recipes.RecipeRuntime.service?.controls?.stop(); stopReading() }
+            }, android.widget.LinearLayout.LayoutParams(dp(76), dp(54)))
+        }
         val type = if (Build.VERSION.SDK_INT >= 22) WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
-        val lp = WindowManager.LayoutParams(dp(54), dp(54), type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = dp(12); y = dp(260) }
-        try { window?.addView(text, lp); bubble = text; params = lp } catch (_: Exception) { /* Fail closed; no snapshot is taken. */ }
+        val lp = WindowManager.LayoutParams(dp(130), dp(54), type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = dp(12); y = dp(260) }
+        try { window?.addView(strip, lp); bubble = strip; params = lp } catch (_: Exception) { /* Fail closed; no snapshot is taken. */ }
     }
 
     private inner class DragTouch : View.OnTouchListener {
@@ -57,14 +73,15 @@ class ScreenAssistantService : AccessibilityService() {
             val lp = params ?: return false
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> { downX=e.rawX; downY=e.rawY; originX=lp.x; originY=lp.y; dragged=false; return true }
-                MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-downX).toInt(); val dy=(e.rawY-downY).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>dp(5)) dragged=true; lp.x=originX+dx; lp.y=originY+dy; try { window?.updateViewLayout(v,lp) } catch (_: Exception) {}; return true }
-                MotionEvent.ACTION_UP -> { val dm=resources.displayMetrics; lp.x=if(lp.x+v.width/2 < dm.widthPixels/2) dp(4) else dm.widthPixels-v.width-dp(4); lp.y=lp.y.coerceIn(dp(24), dm.heightPixels-v.height-dp(48)); try { window?.updateViewLayout(v,lp) } catch (_: Exception) {}; if (!dragged) v.performClick(); return true }
+                MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-downX).toInt(); val dy=(e.rawY-downY).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>dp(5)) dragged=true; lp.x=originX+dx; lp.y=originY+dy; try { window?.updateViewLayout(bubble ?: v,lp) } catch (_: Exception) {}; return true }
+                MotionEvent.ACTION_UP -> { val dm=resources.displayMetrics; val width=bubble?.width ?: v.width; lp.x=if(lp.x+width/2 < dm.widthPixels/2) dp(4) else (dm.widthPixels-width-dp(4)).coerceAtLeast(0); lp.y=lp.y.coerceIn(0, (dm.heightPixels-v.height-dp(48)).coerceAtLeast(0)); try { window?.updateViewLayout(bubble ?: v,lp) } catch (_: Exception) {}; if (!dragged) v.performClick(); return true }
             }
             return false
         }
     }
 
     private fun captureBeforePanel() {
+        if (stopped) return
         if (!busy.compareAndSet(false,true)) return
         val personalLegacy = PersonalScreenConsent.enabled(this)
         if (!ScreenReadPolicy.supportsSecureWindowCapture(Build.VERSION.SDK_INT) && !personalLegacy) {
@@ -90,6 +107,7 @@ class ScreenAssistantService : AccessibilityService() {
                 override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
                     // API 34 binds capture and secure-window rejection to this window ID.
                     try { screenshot.hardwareBuffer.close() } catch (_: Exception) { }
+                    if (stopped) { busy.set(false); return }
                     if (windowEpoch != expectedEpoch) openDenied("The active window changed. Nothing was read.")
                     else captureNodes(expectedWindow, expectedPackage, expectedEpoch)
                 }
@@ -99,6 +117,7 @@ class ScreenAssistantService : AccessibilityService() {
     }
 
     private fun captureNodes(expectedWindow: Int, expectedPackage: String, expectedEpoch: Long, secureCaptureVerified: Boolean = true) {
+        if (stopped) { busy.set(false); return }
         val before = try { rootInActiveWindow } catch (_: Exception) { null }
         val pkg = before?.packageName?.toString()
         val sensitive = before?.let(::hasPassword) ?: false
@@ -122,32 +141,41 @@ class ScreenAssistantService : AccessibilityService() {
         } catch (_: Exception) { ScreenSnapshot(pkg.orEmpty(), System.currentTimeMillis(), emptyList(), "The active window changed or sensitive content was detected. Nothing was read.") }
         finally { runCatching { before?.recycle() } }
         // Snapshot is created before launching the panel; text is passed only in-process and not persisted.
-        try { startActivity(Intent(this, ScreenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(ScreenActivity.EXTRA_SNAPSHOT, ScreenSnapshotCodec.encode(snapshot))) }
+        try { if (!stopped) startActivity(Intent(this, ScreenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(ScreenActivity.EXTRA_SNAPSHOT, ScreenSnapshotCodec.encode(snapshot))) }
         catch (_: Exception) { }
         finally { busy.set(false) }
     }
     private fun openDenied(reason: String) {
+        if (stopped) { busy.set(false); return }
         try { startActivity(Intent(this,ScreenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(ScreenActivity.EXTRA_SNAPSHOT,ScreenSnapshotCodec.encode(ScreenSnapshot("",System.currentTimeMillis(),emptyList(),reason)))) } catch (_:Exception) { }
         finally { busy.set(false) }
     }
     private fun blockedPackages(): Set<String> = getSharedPreferences("screen_assistant", MODE_PRIVATE).getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
     private fun hasPassword(node: AccessibilityNodeInfo): Boolean = scanSensitive(node,0,false)
     private fun containsPasswordOrSecureEditable(node: AccessibilityNodeInfo): Boolean = scanSensitive(node,0,true)
-    private fun scanSensitive(node: AccessibilityNodeInfo, depth:Int, rejectEditable:Boolean): Boolean {
-        if(depth>24) return true
-        if(node.isPassword || node.className?.toString()?.contains("Password",true)==true || (rejectEditable && node.isEditable && node.text?.isNotEmpty()==true)) return true
-        for(i in 0 until node.childCount) {
-            val child=try { node.getChild(i) } catch (_:Exception) { null } ?: return true
-            val found=try { scanSensitive(child,depth+1,rejectEditable) } finally { runCatching { child.recycle() } }
-            if(found) return true
+    private fun scanSensitive(node: AccessibilityNodeInfo, depth: Int, rejectEditable: Boolean): Boolean {
+        val started = android.os.SystemClock.uptimeMillis()
+        var visited = 0
+        fun scan(n: AccessibilityNodeInfo, d: Int): Boolean {
+            if (d > 24 || ++visited > 300 || android.os.SystemClock.uptimeMillis() - started > 400) return true
+            if (n.isPassword || n.className?.toString()?.contains("Password", true) == true ||
+                (rejectEditable && n.isEditable && n.text?.isNotEmpty() == true)) return true
+            for (i in 0 until n.childCount) {
+                val child = try { n.getChild(i) } catch (_: Exception) { null } ?: return true
+                val found = try { scan(child, d + 1) } finally { runCatching { child.recycle() } }
+                if (found) return true
+            }
+            return false
         }
-        return false
+        return scan(node, depth)
     }
     private class SensitiveScreenException: RuntimeException()
     private fun collect(root: AccessibilityNodeInfo): List<ScreenItem> {
         val out = mutableListOf<ScreenItem>()
+        var visited = 0
+        val started = android.os.SystemClock.uptimeMillis()
         fun walk(n: AccessibilityNodeInfo, depth: Int) {
-            if (depth > 24 || out.size >= 120) return
+            if (depth > 24 || ++visited > 300 || android.os.SystemClock.uptimeMillis()-started > 400) throw SensitiveScreenException()
             val cls=n.className?.toString().orEmpty(); val editable=n.isEditable; val button=n.isClickable || cls.contains("Button",true); val label=(n.text?.toString() ?: n.contentDescription?.toString()).orEmpty().trim()
             if (editable && n.text?.isNotEmpty()==true) throw SensitiveScreenException()
             if (label.isNotEmpty() && !ScreenReadPolicy.shouldDiscardText(label)) {

@@ -36,6 +36,7 @@ object ActionTools {
         ToolSchema("timer.set", "Open Android timer creation UI", mapOf("seconds" to "integer", "label" to "string")),
         ToolSchema("note.save", "Save a private note", mapOf("text" to "string")), ToolSchema("note.list", "List saved private notes", emptyMap()),
         ToolSchema("app.open", "Launch an installed app by label", mapOf("name" to "string")),
+        ToolSchema("app.search", "Search launchable apps by name; bounded results", mapOf("query" to "string")),
         ToolSchema("device.wifi", "Open Wi-Fi settings; user makes changes", emptyMap()),
         ToolSchema("device.bluetooth", "Open Bluetooth settings; user makes changes", emptyMap()),
         ToolSchema("device.brightness", "Open display settings", emptyMap()),
@@ -46,7 +47,11 @@ object ActionTools {
         ToolSchema("device.location", "Open location settings", emptyMap()),
         ToolSchema("device.accessibility", "Open accessibility settings", emptyMap()),
         ToolSchema("device.notifications", "Open notification settings", emptyMap()),
-        ToolSchema("device.storage", "Open storage settings", emptyMap()),
+        ToolSchema("device.storage", "Open storage settings; user makes changes", emptyMap()),
+        ToolSchema("device.storage_status", "Read available storage summary", emptyMap()),
+        ToolSchema("model.status", "Read local model readiness status without diagnostics", emptyMap()),
+        ToolSchema("diagnostics.read", "Read redacted local diagnostics summary; excludes logs, chat, paths and secrets", emptyMap()),
+        ToolSchema("note.search", "Search saved private notes", mapOf("query" to "string")),
         ToolSchema("device.date_settings", "Open date and time settings", emptyMap()),
         ToolSchema("device.app_settings", "Open app settings", emptyMap()),
         ToolSchema("device.flashlight", "Turn flashlight on or off using CameraManager; CAMERA permission required", mapOf("enabled" to "boolean"), risk = "medium", permission = "android.permission.CAMERA")
@@ -61,8 +66,8 @@ object ActionTools {
         return schema.arguments.all { (key, type) ->
             val value = args.opt(key)
             when (type) {
-                "string", "HH:mm" -> value is String && value.isNotBlank() && value.length <= (if (key == "text") 2000 else 120) && (type != "HH:mm" || runCatching { java.time.LocalTime.parse(value) }.isSuccess)
-                "integer" -> value is Number && value.toDouble() % 1.0 == 0.0 && value.toDouble() in -36500.0..86400.0
+                "string", "HH:mm" -> value is String && value.isNotBlank() && value.length <= (if (key == "text") 2000 else 120) && (type != "HH:mm" || (Regex("^\\d{2}:\\d{2}$").matches(value) && runCatching { java.time.LocalTime.parse(value) }.isSuccess))
+                "integer" -> value is Number && value.toDouble() % 1.0 == 0.0 && when(key) { "days" -> value.toDouble() in 1.0..36500.0; "seconds" -> value.toDouble() in 1.0..86400.0; else -> false }
                 "boolean" -> value is Boolean
                 else -> false
             }
@@ -83,6 +88,10 @@ private val library = listOf(
  Match("alarm","alarm.set",90,listOf("set an alarm","set alarm","wake me","alarm for","alarm at","alarm lagao","remind me at")),
  Match("timer","timer.set",90,listOf("set a timer","set timer","timer for","start timer","countdown","timer lagao")),
  Match("notes","note.list",92,listOf("check notes","list notes","show notes","my notes")),
+ Match("note_search","note.search",93,listOf("search notes","find notes")),
+ Match("app_search","app.search",92,listOf("search apps","find apps","look for app")),
+ Match("model_status","model.status",95,listOf("model status","local model status")),
+ Match("diagnostics","diagnostics.read",95,listOf("diagnostics summary","redacted diagnostics")),
  Match("note","note.save",90,listOf("make a note","save a note","take a note","remember this","write a note","note this","yaad rakh","save note")),
  Match("app","app.open",80,listOf("open app","launch app","open youtube","open camera","open calculator","open settings"," kholo app","start app")),
  Match("wifi","device.wifi",90,listOf("wifi settings","wi-fi settings","turn on wifi","turn off wifi","enable wifi","disable wifi","wifi chalu","wifi band")),
@@ -95,6 +104,7 @@ private val library = listOf(
  Match("location","device.location",90,listOf("location settings","gps settings","location services","location chalu")),
  Match("accessibility","device.accessibility",90,listOf("accessibility settings","open accessibility","accessibility kholo")),
  Match("notifications","device.notifications",90,listOf("notification settings","notifications settings","app notifications")),
+ Match("storage_status","device.storage_status",92,listOf("storage status","free storage","available storage","how much storage")),
  Match("storage","device.storage",90,listOf("storage settings","phone storage","manage storage","storage space","internal storage","manage phone storage")),
  Match("date_settings","device.date_settings",90,listOf("date and time settings","time settings","date settings","set date and time","automatic time")),
  Match("app_settings","device.app_settings",85,listOf("application settings","installed apps","manage apps","app settings","manage installed apps","manage application settings"))
@@ -103,14 +113,18 @@ private val library = listOf(
 /** Rules-first local runtime. Compound steps execute sequentially; state changes always remain user-mediated Android UI. */
 class ActionRuntime(private val context: Context, private val store: GreenStore, private val today: () -> LocalDate = { LocalDate.now() }, private val confirmRisk: (String) -> Boolean = { false }) {
     private companion object { val executionMutex = Mutex() }
+    private fun manualControlRequest(request: String): Boolean = Regex("(?i)^(?:please\\s+)?(?:tap\\s|swipe\\s|scroll\\s|type text\\b|press (?:back|home)\\b|read (?:the )?screen\\b|show (?:the )?ui tree\\b)").containsMatchIn(request.trim())
+    private fun shellRequest(request: String): Boolean = Regex("(?i)^(?:please\\s+)?(?:run|execute)\\s+(?:a\\s+)?(?:shell|bash|command|root)\\b").containsMatchIn(request.trim())
     fun plan(request: String): JSONArray? = planDryRun(request)
 
     /** Pure deterministic planning API; approved DB rule snapshots only change after refreshRules(). */
     fun planDryRun(request: String): JSONArray? {
+        if (request.length > 4096) return null
+        if (manualControlRequest(request) || shellRequest(request)) return null
         if (isNegated(request)) return null
         val rewritten = rewrite(request)
         val parts = splitCompound(rewritten)
-        if (parts.isEmpty()) return null
+        if (parts.isEmpty() || parts.size > 16) return null
         val result = JSONArray()
         for (part in parts) {
             if (isNegated(part)) return null
@@ -123,6 +137,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
                 if(note.isNotBlank()) { result.put(JSONObject().put("tool","note.save").put("args",JSONObject().put("text",note)).put("verify","note.readback")); args.put("label",note) }
             }
             result.put(step)
+            if (result.length() > 16) return null
         }
         return result
     }
@@ -167,7 +182,9 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     /** A recognized action with missing/unsupported slots is not a chat question.
      * No partial compound plan is executed and no model should invent a tool result. */
     fun clarification(request: String): String? {
-        if (request.length > 4096) return null
+        if (request.length > 2048) return null
+        if (manualControlRequest(request)) return "No screen action was run. Use the opt-in manual Controls session in Confirmed app recipes; each change needs confirmation and STOP remains visible."
+        if (shellRequest(request)) return "No action was run. Mr Green does not expose shell, Bash or root execution. Use a named local action instead."
         val parts = splitCompound(rewrite(request))
         val candidates = parts.flatMap { matchingIntents(it.replace(negationPrefix, "")).toList() }
         if (candidates.isEmpty()) return null
@@ -194,39 +211,56 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     suspend fun executePlanResult(steps: JSONArray, progress: (String)->Unit = {}): PlanExecutionResult =
         executePlanResult(steps, progress, isCancelled = { false })
 
-    suspend fun executePlanResult(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult =
-        executionMutex.withLock { executePlanOwned(steps, progress, isCancelled) }
+    suspend fun executePlanResult(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult {
+        if (steps.length() !in 1..16) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plans require 1 to 16 steps.")
+        val encoded = steps.toString()
+        if (encoded.length > 16384) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plan input is too large.")
+        val frozen = try { JSONArray(encoded) } catch (_: Exception) { return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: invalid plan.") }
+        return executionMutex.withLock { executePlanOwned(frozen, progress, isCancelled) }
+    }
 
     private suspend fun executePlanOwned(steps: JSONArray, progress: (String)->Unit, isCancelled: () -> Boolean): PlanExecutionResult {
         if (steps.length() == 0) return PlanExecutionResult(PlanOutcome.FAILED, "No steps to run.")
+        if (steps.toString().length > 16384) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plan input is too large.")
         if (steps.length() > 16) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: plans are limited to 16 steps.")
-        for (i in 0 until steps.length()) { val candidate=steps.optJSONObject(i); if(candidate==null || !ActionTools.validate(candidate)) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: unknown tool or invalid arguments in step ${i + 1}.") }
+        val snapshot = try { JSONArray(steps.toString()) } catch (_: Exception) { return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: invalid plan snapshot.") }
+        val deadline = System.nanoTime() + 12_000_000_000L
+        for (i in 0 until snapshot.length()) { val candidate=snapshot.optJSONObject(i); if(candidate==null || !ActionTools.validate(candidate)) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: unknown tool or invalid arguments in step ${i + 1}.") }
         val outcomes = mutableListOf<String>()
         var handedOff = false
-        for (i in 0 until steps.length()) {
+        for (i in 0 until snapshot.length()) {
+            if (System.nanoTime() > deadline) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: action time budget exceeded; synchronous Android calls cannot be cancelled.")
             if (isCancelled()) return PlanExecutionResult(PlanOutcome.CANCELLED,
-                outcomes.joinToString(" ") + " Stopped: remaining steps cancelled. Earlier actions were not undone.")
-            val step = steps.optJSONObject(i) ?: return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: step ${i + 1} is not a valid object.")
+                (outcomes.joinToString(" ") + " Stopped: remaining steps cancelled. Earlier actions were not undone.").take(4000))
+            val step = snapshot.optJSONObject(i) ?: return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: step ${i + 1} is not a valid object.")
             if (!ActionTools.validate(step)) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: unknown tool or invalid arguments in step ${i + 1}.")
             val tool = step.getString("tool"); val args = step.optJSONObject("args") ?: JSONObject()
-            progress("Running ${i + 1}/${steps.length()}: $tool")
-            if (ActionTools.registry.firstOrNull { it.id == tool }?.risk != "low" && !confirmRisk(tool)) { progress("Pending confirmation ${i + 1}/${steps.length()}: $tool"); return PlanExecutionResult(PlanOutcome.PENDING_CONFIRMATION, "Pending confirmation: $tool was not run.") }
-            val result = try { runTool(tool, args) } catch (e: kotlinx.coroutines.CancellationException) {
+            progress("Running ${i + 1}/${snapshot.length()}: $tool")
+            if (ActionTools.registry.firstOrNull { it.id == tool }?.risk != "low" && !confirmRisk(tool)) { progress("Pending confirmation ${i + 1}/${snapshot.length()}: $tool"); return PlanExecutionResult(PlanOutcome.PENDING_CONFIRMATION, "Pending confirmation: $tool was not run.") }
+            if (isCancelled()) return PlanExecutionResult(PlanOutcome.CANCELLED, (outcomes.joinToString(" ") + " Stopped before the next action. Earlier actions were not undone.").take(4000))
+            if (System.nanoTime() > deadline) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: action time budget exceeded. Earlier actions were not undone.")
+            val permission = ActionTools.registry.first { it.id == tool }.permission
+            if (permission != null && context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED)
+                return PlanExecutionResult(PlanOutcome.FAILED, "Permission missing for $tool. No permission was granted automatically; review Capability setup.")
+            val result = try { runTool(tool, args) } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                ToolResult(false, "Stopped: action timed out.")
+            } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                ToolResult(false, "Could not complete $tool: ${e.message ?: "Android rejected the request"}")
+                ToolResult(false, "Could not complete $tool. Android rejected or could not process the request.")
             }
             if(!result.ok) {
                 val app=context.applicationContext as? im.mrgreen.GreenApp
                 if(app!=null) app.logger.write("WARN","TOOL","Registered action failed; tool=$tool",im.mrgreen.core.ErrorCode.E_TOOL_FAILED)
-                else store.log("WARN","TOOL","E_TOOL_FAILED","Registered action failed; tool=$tool","foreground")
+                else runCatching { store.log("WARN","TOOL","E_TOOL_FAILED","Registered action failed; tool=$tool","foreground") }
             }
-            if (!result.ok) { progress("Failed ${i + 1}/${steps.length()}: $tool"); return PlanExecutionResult(PlanOutcome.FAILED, "${outcomes.joinToString("; ").let { if(it.isBlank()) "" else "$it. " }}${result.message}") }
-            progress("Done ${i + 1}/${steps.length()}: $tool")
+            if (!result.ok) { progress("Failed ${i + 1}/${snapshot.length()}: $tool"); return PlanExecutionResult(PlanOutcome.FAILED, "${outcomes.joinToString("; ").let { if(it.isBlank()) "" else "$it. " }}${result.message}".take(4000)) }
+            progress("Done ${i + 1}/${snapshot.length()}: $tool")
             outcomes += result.message
             handedOff = handedOff || !result.verified
         }
-        return PlanExecutionResult(if (handedOff) PlanOutcome.HANDED_OFF else PlanOutcome.VERIFIED, outcomes.joinToString(" "))
+        val output = outcomes.joinToString(" ").take(4000)
+        return PlanExecutionResult(if (handedOff) PlanOutcome.HANDED_OFF else PlanOutcome.VERIFIED, output)
     }
 
     private data class ToolResult(val ok:Boolean, val message:String, val verified:Boolean = true)
@@ -248,12 +282,18 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         "math.calculate" -> try { ToolResult(true, "${a.getString("expression")} = ${Arithmetic.evaluate(a.getString("expression"))}") } catch (_:Exception) { ToolResult(false,"I couldn't evaluate that arithmetic expression.") }
         "note.save" -> saveNote(a.getString("text"))
         "note.list" -> listNotes()
+        "note.search" -> searchNotes(a.getString("query"))
+        "device.storage_status" -> storageSummary()
+        "app.search" -> searchApps(a.getString("query"))
+        "model.status" -> { val loaded=im.mrgreen.core.AgentController.state.value.stats.loadedModel != null; ToolResult(true, "Local model loaded: $loaded.") }
+        "diagnostics.read" -> { val mem=android.app.ActivityManager.MemoryInfo(); (context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager)?.getMemoryInfo(mem); val v=runCatching { context.packageManager.getPackageInfo(context.packageName,0).versionName }.getOrNull()?.take(32) ?: "unknown"; ToolResult(true, "Diagnostics: app version $v; Android API ${android.os.Build.VERSION.SDK_INT}; ABI ${android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}; memory available ${mem.availMem/1048576} MB; local model loaded ${im.mrgreen.core.AgentController.state.value.stats.loadedModel != null}; no private data or paths exposed.") }
         "alarm.set" -> {
             val t=LocalTime.parse(a.getString("time")); val i=Intent(AlarmClock.ACTION_SET_ALARM).putExtra(AlarmClock.EXTRA_HOUR,t.hour).putExtra(AlarmClock.EXTRA_MINUTES,t.minute).putExtra(AlarmClock.EXTRA_MESSAGE,a.optString("label","Mr Green alarm")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No alarm app is available.") else { context.startActivity(i); ToolResult(true,"Pending external verification: opened alarm setup for ${t.format(DateTimeFormatter.ofPattern("h:mm a",Locale.getDefault()))}; confirm/save it in the clock app and verify there before relying on it.", verified = false) }
         }
         "timer.set" -> { val seconds=a.getInt("seconds"); if(seconds<1 || seconds>86400) ToolResult(false,"Timer must be between 1 second and 24 hours.") else { val i=Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH,seconds).putExtra(AlarmClock.EXTRA_MESSAGE,a.optString("label","Mr Green timer")).putExtra(AlarmClock.EXTRA_SKIP_UI,false).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); if(i.resolveActivity(context.packageManager)==null) ToolResult(false,"No timer app is available.") else { context.startActivity(i); ToolResult(true,"Opened timer setup for ${seconds}s; please confirm it in the clock app.", verified = false) } } }
         "app.open" -> openApp(a.getString("name"))
+        "device.wifi", "device.bluetooth", "device.brightness", "device.volume", "device.airplane", "device.settings", "device.location", "device.accessibility", "device.notifications", "device.date_settings", "device.app_settings", "device.storage" -> openSettings(id)
         "device.battery" -> {
             val reading = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val percent = batteryPercent(reading?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1,
@@ -261,12 +301,21 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
             if (percent == null) ToolResult(false, "Battery status is unavailable.")
             else ToolResult(true, "Battery is $percent%.")
         }
-        else -> openSettings(id)
+        else -> ToolResult(false, "Unsupported action.")
     }
     private fun listNotes(): ToolResult = try {
-        val notes=store.readableDatabase.rawQuery("SELECT value FROM facts WHERE tags='note' ORDER BY id DESC LIMIT 100",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0)) } }
-        ToolResult(true, if(notes.isEmpty()) "No saved notes." else "Saved notes: " + notes.joinToString("; "))
-    } catch(e:Exception) { ToolResult(false,"Could not list notes: ${e.message}") }
+        val notes=store.readableDatabase.rawQuery("SELECT value FROM facts WHERE tags='note' ORDER BY id DESC LIMIT 20",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0).take(240)) } }
+        ToolResult(true, if(notes.isEmpty()) "No saved notes." else "Saved notes: " + notes.joinToString("; ").take(1800))
+    } catch(e:Exception) { ToolResult(false,"Could not list private notes.") }
+    private fun searchNotes(query:String):ToolResult = try {
+        val q=query.trim().take(120).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        val notes=store.readableDatabase.rawQuery("SELECT value FROM facts WHERE tags='note' AND value LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT 10", arrayOf("%$q%")).use { c -> buildList { while(c.moveToNext()) add(c.getString(0).take(240)) } }
+        ToolResult(true, if(notes.isEmpty()) "No matching private notes." else "Matching private notes: "+notes.joinToString("; ").take(1200))
+    } catch (_:Exception) { ToolResult(false,"Could not search private notes.") }
+    private fun storageSummary():ToolResult = try {
+        val stat=android.os.StatFs(context.filesDir.absolutePath); val free=stat.availableBytes/1_073_741_824.0; val total=stat.totalBytes/1_073_741_824.0
+        ToolResult(true,"App data volume: ${"%.1f".format(Locale.ROOT,free)} GB available of ${"%.1f".format(Locale.ROOT,total)} GB.")
+    } catch (_:Exception) { ToolResult(false,"Storage status is unavailable.") }
     private fun saveNote(text:String):ToolResult {
         val clean=text.trim(); if(clean.length > 2000) return ToolResult(false,"Note is too long (maximum 2000 characters).")
         if(clean.isBlank()) return ToolResult(false,"What should I save in the note?")
@@ -286,19 +335,43 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
                 db.setTransactionSuccessful()
                 ToolResult(true,"Saved note: $clean")
             } catch(e:Exception) { file.delete(); tmp.delete(); throw e } finally { db.endTransaction() }
-        } catch(e:Exception) { ToolResult(false,"Could not save the note: ${e.message}") }
+        } catch(e:Exception) { ToolResult(false,"Could not save the private note.") }
     }
     private fun openApp(name:String):ToolResult {
         val pm=context.packageManager
-        val candidates=pm.getInstalledApplications(PackageManager.GET_META_DATA).map { it to pm.getApplicationLabel(it).toString() }
-        val exact=candidates.filter{it.second.equals(name.trim(),true)}
-        val partial=candidates.filter{it.second.contains(name.trim(),true)}
-        val found=exact.singleOrNull() ?: knownApp(name)?.let { pkg -> candidates.firstOrNull { it.first.packageName==pkg } } ?: partial.singleOrNull()
+        val q=name.trim().take(120)
+        if (q.isBlank()) return ToolResult(false,"Specify an app name.")
+        val launcher=Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val candidates=try { pm.queryIntentActivities(launcher,0).asSequence().take(512).mapNotNull { ri ->
+            val ai=ri.activityInfo ?: return@mapNotNull null
+            val label=runCatching { ri.loadLabel(pm)?.toString() }.getOrNull()?.take(100) ?: ai.packageName.take(100)
+            Triple(ai.packageName, label, ri)
+        }.distinctBy { it.first }.take(256).toList() } catch (_:Exception) { return ToolResult(false,"Could not inspect launchable apps.") }
+        val mapped=knownApp(q)
+        val exact=candidates.filter { it.second.equals(q,true) || it.first.equals(mapped,true) }
+        val partial=candidates.filter { it.second.contains(q,true) || it.first.contains(q,true) }
+        val found=exact.singleOrNull() ?: partial.singleOrNull()
         if(found==null && (exact.size>1 || partial.size>1)) return ToolResult(false,"Several apps match that name. Please specify the full app name.")
-        val launch=found?.let { pm.getLaunchIntentForPackage(it.first.packageName) } ?: return ToolResult(false,"I couldn't find an installed app matching “$name”.")
-        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(launch); return ToolResult(true,"Opened ${found.second}.")
+        val launch=found?.third?.let { Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(it.activityInfo.packageName,it.activityInfo.name) }
+            ?: return ToolResult(false,"I couldn't find a launchable app matching “$q”.")
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(launch); return ToolResult(true,"Handed off to ${found.second}; verify the app opened and complete any action there.", verified = false)
     }
-    private fun knownApp(s:String)=when(s.trim().lowercase(Locale.ROOT)){"youtube"->"com.google.android.youtube";"camera"->"com.android.camera";"phone"->"com.android.dialer";"chrome"->"com.android.chrome";else->null}
+    private fun searchApps(query:String):ToolResult {
+        val q=query.trim().take(120); if(q.isBlank()) return ToolResult(false,"Specify an app name to search.")
+        val pm=context.packageManager
+        val apps=try { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0).asSequence().take(512).mapNotNull { ri ->
+            ri.activityInfo?.let { it.packageName.take(120) to (runCatching { ri.loadLabel(pm)?.toString() }.getOrNull()?.take(100) ?: it.packageName.take(100)) }
+        }.distinctBy { it.first }.filter { it.second.contains(q,true) || it.first.contains(q,true) }.take(10).toList() }
+        catch (_:Exception) { return ToolResult(false,"Could not search launchable apps.") }
+        return ToolResult(true, if(apps.isEmpty()) "No launchable apps match that name." else "Launchable apps: "+apps.joinToString("; "){ "${it.second} (${it.first})"}.take(1200))
+    }
+    private fun knownApp(name: String): String? = when (name.trim().lowercase(Locale.ROOT)) {
+        "youtube" -> "com.google.android.youtube"
+        "camera" -> "com.android.camera"
+        "phone" -> "com.android.dialer"
+        "chrome" -> "com.android.chrome"
+        else -> null
+    }
     private fun setFlashlight(enabled:Boolean):ToolResult {
         if (android.os.Build.VERSION.SDK_INT < 23) return ToolResult(false,"Flashlight API requires Android 6 or later.")
         if (context.checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return ToolResult(false,"Flashlight not changed: CAMERA permission is not granted.")
@@ -309,11 +382,11 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
         val action=when(id){"device.wifi"->Settings.ACTION_WIFI_SETTINGS;"device.bluetooth"->Settings.ACTION_BLUETOOTH_SETTINGS;"device.brightness"->Settings.ACTION_DISPLAY_SETTINGS;"device.volume"->Settings.ACTION_SOUND_SETTINGS;"device.airplane"->Settings.ACTION_AIRPLANE_MODE_SETTINGS;"device.location"->Settings.ACTION_LOCATION_SOURCE_SETTINGS;"device.accessibility"->Settings.ACTION_ACCESSIBILITY_SETTINGS;"device.notifications"->Settings.ACTION_APP_NOTIFICATION_SETTINGS;"device.storage"->Settings.ACTION_INTERNAL_STORAGE_SETTINGS;"device.date_settings"->Settings.ACTION_DATE_SETTINGS;"device.app_settings"->Settings.ACTION_APPLICATION_SETTINGS;else->Settings.ACTION_SETTINGS}
         val i=Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if(i.resolveActivity(context.packageManager)==null) return ToolResult(false,"This Android settings screen isn't available on this device.")
-        context.startActivity(i); return ToolResult(true,"Opened the relevant Android settings. No setting was changed automatically; review and change it there.")
+        context.startActivity(i); return ToolResult(true,"Handed off to Android settings. No setting was changed automatically; review and change it there.", verified = false)
     }
 
     private fun route(raw:String):Match? {
-        if(raw.length > 4096) return null
+        if(raw.length > 2048) return null
         return matchingIntents(raw).filter { arguments(it.tool,raw)!=null }.sortedByDescending { it.priority }.firstOrNull()
     }
     private fun matchingIntents(raw: String): Sequence<Match> {
@@ -337,13 +410,15 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
     private fun arguments(tool:String,raw:String):JSONObject? {
         val s=commandText(raw)
         return when(tool){
-            "note.list","clock.time","clock.date","device.wifi","device.bluetooth","device.brightness","device.volume","device.battery","device.airplane","device.settings","device.location","device.accessibility","device.notifications","device.storage","device.date_settings","device.app_settings" -> JSONObject()
+            "note.list","model.status","diagnostics.read","device.storage","device.storage_status","clock.time","clock.date","device.wifi","device.bluetooth","device.brightness","device.volume","device.battery","device.airplane","device.settings","device.location","device.accessibility","device.notifications","device.date_settings","device.app_settings" -> JSONObject()
             "math.calculate" -> { val expr=extractMath(s) ?: return null; JSONObject().put("expression",expr) }
             "date.add" -> { val n=Regex("(?i)(\\d+)\\s+days?").find(s)?.groupValues?.get(1)?.toIntOrNull() ?: return null; if(n !in 1..36500) return null; JSONObject().put("days",n) }
             "device.flashlight" -> { val on = !Regex("(?i)\\b(off|turn off|torch off)\\b").containsMatchIn(s); JSONObject().put("enabled",on) }
             "media.play" -> JSONObject().put("query",raw.replace(Regex("(?i)\\b(play|music|song|video|please|a|the)\\b")," ").trim().ifBlank { "music" }).put("video",raw.contains("video",true))
             "alarm.set" -> { val t=parseTime(s) ?: return null; JSONObject().put("time",t).put("label", s.substringAfter("alarm", "").substringAfter("for", "").trim().take(60).ifBlank { "Mr Green alarm" }) }
             "timer.set" -> { val sec=parseDuration(s) ?: return null; JSONObject().put("seconds",sec).put("label","Mr Green timer") }
+            "app.search" -> { val q=Regex("(?i)\\b(?:search|find) apps?\\b|\\blook for app\\b").find(s)?.let { s.substring(it.range.last+1).trim() } ?: ""; if(q.isBlank()) return null; JSONObject().put("query",q.take(120)) }
+            "note.search" -> { val q=Regex("(?i)\\b(?:search|find) notes\\b").find(s)?.let { s.substring(it.range.last+1).trim() } ?: ""; if(q.isBlank()) return null; JSONObject().put("query",q.take(120)) }
             "note.save" -> { val text=raw.trim().replace(Regex("(?i)^(?:please\\s+)?(?:(?:make|save|take|write)\\s+(?:a\\s+)?note|remember\\s+this|note\\s+this|yaad\\s+rakh)[: ]*"),"").trim(); if(text.isBlank()) return null; JSONObject().put("text",text) }
             "app.open" -> { val n=s.replace(Regex("(?i)^(please\\s+)?(open|launch|start)\\s+(the\\s+)?(app\\b\\s*)?"),"").trim(); if(n.isBlank()) return null; JSONObject().put("name",n) }
             else -> null
