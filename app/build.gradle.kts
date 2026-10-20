@@ -13,8 +13,8 @@ android {
         applicationId = "im.mrgreen"
         minSdk = 26
         targetSdk = 30
-        versionCode = 14
-        versionName = "0.10.5-safe-actions-preview"
+        versionCode = 15
+        versionName = "0.10.6-rive-qa-preview"
         // Exposes device-local consent only; a personal build does not itself authorize reads.
         buildConfigField("boolean", "PERSONAL_SCREEN_READING", providers.gradleProperty("personalScreenReading").map { (it == "true").toString() }.getOrElse("false"))
         ndk { abiFilters += "armeabi-v7a" }

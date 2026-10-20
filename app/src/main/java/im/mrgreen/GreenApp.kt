@@ -12,7 +12,8 @@ class GreenApp : Application() {
     val store by lazy { GreenStore(this) }
     val logger by lazy { GreenLog(this, store) }
     val plugins by lazy { im.mrgreen.plugins.PluginSystem(this) }
-    val rive by lazy { im.mrgreen.rive.RiveBrain(java.io.File(filesDir, "rive")) }
+    val rive by lazy { im.mrgreen.rive.RiveBrain(java.io.File(filesDir, "rive"),
+        assets.open("rive/builtin-conversation.rive").bufferedReader(Charsets.UTF_8).use { it.readText() }) }
     override fun onCreate() {
         super.onCreate()
         im.mrgreen.learning.DatabaseSnapshots.applyPending(this)

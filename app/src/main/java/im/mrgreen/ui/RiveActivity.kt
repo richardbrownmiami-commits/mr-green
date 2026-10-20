@@ -26,16 +26,26 @@ class RiveActivity : AppCompatActivity() {
     private lateinit var exportButton: Button
     private lateinit var reviewButton: Button
     private lateinit var clearButton: Button
+    private lateinit var builtInButton: Button
+    private lateinit var exportBuiltInButton: Button
     private lateinit var reloadButton: Button
     private lateinit var learningSwitch: SwitchCompat
     private var enablingConfirmation = false
     private var working = false
     private val prefs by lazy { getSharedPreferences("rive", MODE_PRIVATE) }
     private val brain by lazy {
-        (application as? GreenApp)?.rive ?: RiveBrain(File(filesDir, "rive"))
+        (application as? GreenApp)?.rive ?: RiveBrain(File(filesDir, "rive"),
+            assets.open("rive/builtin-conversation.rive").bufferedReader(Charsets.UTF_8).use { it.readText() })
     }
     private val importPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::importDocument) }
     private val exportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::exportDocument) }
+    private val builtInExportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        uri?.let { runIo("Exporting built-in rules…") {
+            contentResolver.openOutputStream(it, "wt")?.bufferedWriter(Charsets.UTF_8)?.use { writer -> writer.write(brain.builtInText()) }
+                ?: throw IllegalArgumentException("Could not create destination document")
+            "Built-in rules exported with source attribution. Your saved rules were not changed."
+        } }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,13 +59,17 @@ class RiveActivity : AppCompatActivity() {
         text("Rules reload immediately between replies; a reply already streaming is unchanged.", 14f)
         text("Matching handles sentence punctuation, wrapping quotes, greeting commas and unambiguous contractions. One approved common typo can match only at a spelling score of at least 94% with one candidate. Ambiguous contractions, names, numbers, operators, paraphrases and other uncertain differences are not guessed. This is not semantic understanding. When saved rules exist, misses use local GGUF, even if cloud is enabled.", 14f)
         statusView = text("Loading rule status…", 14f)
+        builtInButton = button("View built-in Q&A rules") { viewBuiltIn() }
+        exportBuiltInButton = button("Export built-in Q&A…") { builtInExportPicker.launch("mr-green-built-in-qa.rive") }
+        text("Built-in conversation rules are read-only app defaults, separate from your saved rules. Imported and learned rules override matching built-ins in Rive lookup. Registered actions and editable identity/direct help still have priority in chat. Built-in and saved rules have separate exports; no import is needed to activate built-ins. Battery, time, storage and job status remain live actions, never canned rules.", 14f)
         importButton = button("Import .rive rules") { chooseImport() }
         editButton = button("Edit imported rule text") { editImported() }
         exportButton = button("Export rules…") { exportPicker.launch("mr-green-rules.rive") }
         text("Auto-learning uses completed local GGUF answers only. Rules are checked first; when enabled, misses are forced local (not cloud). Unverified answers may be wrong, stale, or context-dependent; this does not train the model. Conservative normalized matches only. Learned answers never execute tools.", 14f)
+        text("This personal test build defaults auto-learning on only when no choice is saved. Your existing on/off choice is preserved. Turn this switch off at any time; built-in and direct replies are not copied into learned rules.", 14f)
         learningSwitch = SwitchCompat(this).apply {
             text = "Auto-learn from local answers"; setTextColor(0xFFB98AFF.toInt()); minHeight = dp(52)
-            isChecked = prefs.getBoolean("auto_learn", false)
+            isChecked = im.mrgreen.rive.RiveSettings.autoLearning(this@RiveActivity)
         }
         installLearningListener()
         content.addView(learningSwitch)
@@ -64,6 +78,15 @@ class RiveActivity : AppCompatActivity() {
         reloadButton = button("Reload saved rules") { runIo("Reloading saved rules…") { brain.reload(); "Saved rules reloaded." } }
         text("Imported rules and learned rules are separate. Removing a learned item affects future replies after reload.", 14f)
         refreshStatus()
+    }
+
+    private fun viewBuiltIn() = runIo("Loading built-in rules…") {
+        val data = brain.builtInText()
+        withContext(Dispatchers.Main) {
+            val view = TextView(this@RiveActivity).apply { text = data; setTextIsSelectable(true); setPadding(dp(16), dp(8), dp(16), dp(8)) }
+            AlertDialog.Builder(this@RiveActivity).setTitle("Built-in Q&A (read-only)")
+                .setView(ScrollView(this@RiveActivity).apply { addView(view) }).setPositiveButton("Done", null).show()
+        }
     }
 
     private fun chooseImport() { importPicker.launch(arrayOf("*/*")) }
@@ -157,7 +180,7 @@ class RiveActivity : AppCompatActivity() {
 
     private fun refreshStatus() = runIo("Refreshing rule status…") {
         val result = brain.status()
-        buildString { append("Imported rules: ${result.imported}\nLearned rules: ${result.learned}"); result.warning?.let { append("\nWarning: $it") } }
+        buildString { append("Built-in rules: ${result.bundled}\nImported rules: ${result.imported}\nLearned rules: ${result.learned}"); result.warning?.let { append("\nWarning: $it") } }
     }
     private fun runIo(label: String, operation: suspend () -> Any?) {
         if (working) return
@@ -169,10 +192,10 @@ class RiveActivity : AppCompatActivity() {
             statusView.text = if (error != null) "Operation failed: ${error.localizedMessage ?: error.javaClass.simpleName}"
                 else (outcome.getOrNull() as? String).orEmpty().ifEmpty { label }
             if (error != null) toast(statusView.text.toString())
-            runCatching { withContext(Dispatchers.IO) { brain.status() } }.onSuccess { s -> statusView.text = "${statusView.text}\nImported: ${s.imported} · Learned: ${s.learned}" + (s.warning?.let { "\nWarning: $it" } ?: "") }
+            runCatching { withContext(Dispatchers.IO) { brain.status() } }.onSuccess { s -> statusView.text = "${statusView.text}\nBuilt-in: ${s.bundled} · Imported: ${s.imported} · Learned: ${s.learned}" + (s.warning?.let { "\nWarning: $it" } ?: "") }
         }
     }
-    private fun updateEnabled() { listOf(importButton, editButton, exportButton, reviewButton, clearButton, reloadButton).forEach { it.isEnabled = !working }; learningSwitch.isEnabled = !working }
+    private fun updateEnabled() { listOf(builtInButton, exportBuiltInButton, importButton, editButton, exportButton, reviewButton, clearButton, reloadButton).forEach { it.isEnabled = !working }; learningSwitch.isEnabled = !working }
     private fun displayName(uri: Uri): String? = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null }
     private fun text(value: String, size: Float, bold: Boolean = false): TextView = TextView(this).apply { text = value; textSize = size; setTextColor(0xFFB8ABC9.toInt()); setPadding(0, dp(8), 0, dp(8)); if (bold) typeface = android.graphics.Typeface.DEFAULT_BOLD; content.addView(this) }
     private fun button(label: String, action: () -> Unit): Button = Button(this).apply { text = label; setOnClickListener { action() }; content.addView(this, LinearLayout.LayoutParams(-1, dp(56))) }

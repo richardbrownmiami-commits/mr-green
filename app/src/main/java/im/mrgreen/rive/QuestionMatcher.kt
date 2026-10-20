@@ -107,6 +107,14 @@ class QuestionMatcher(triggers: Collection<String>) {
             // meaning (numbers, ratios, lists, clauses) and intentionally goes to generation.
             value = value.replace(Regex("^(hello|hi|hey|please),\\s+"), "$1 ")
             value = value.replace(spaces, " ").trim()
+            // Closed whole-message courtesies only: never expand arbitrary possessive/'s clauses.
+            value = when (value) {
+                "that's good" -> "that is good"
+                "that's great" -> "that is great"
+                "what's up" -> "what is up"
+                "what's your name" -> "what is your name"
+                else -> value
+            }
             val expanded = value.split(' ').joinToString(" ") { contractions[it] ?: it }
             // Unknown apostrophes ('s, 'd, possessives) stay unsupported rather than guessed.
             return expanded.takeIf { it.length in 1..256 && words.matches(it) }

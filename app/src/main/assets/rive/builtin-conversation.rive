@@ -1,0 +1,367 @@
+! version = 2.0
+
+// Mr Green built-in static conversation defaults. No live readings or action completion claims.
+// Greeting adaptations: ChatterBot Corpus, Gunther Cox (2017), BSD-3-Clause.
+// Source: https://github.com/gunthercox/chatterbot-corpus/blob/eec45b284424c9784a5baab78368b1a9ff3b656f/chatterbot_corpus/data/english/greetings.yml
+// License: assets/licenses/chatterbot-corpus-BSD-3-Clause.txt (also docs/licenses in source).
+// Other app-help and acknowledgement replies are Mr Green code-owned text.
+// Identity entries are default copies; editable identity wins in the app.
+
+// Copyright (c) 2017, Gunther Cox All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+//
+//     Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+//
+//     Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+//
+//     Neither the name of chatterbot nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+
++ hi
+- Hello! I’m Mr Green. How can I help?
+
++ hello
+- Hello! I’m Mr Green. How can I help?
+
++ hey
+- Hello! I’m Mr Green. How can I help?
+
++ hi mr green
+- Hello! I’m Mr Green. How can I help?
+
++ hello mr green
+- Hello! I’m Mr Green. How can I help?
+
++ hey mr green
+- Hello! I’m Mr Green. How can I help?
+
++ hi green
+- Hello! I’m Mr Green. How can I help?
+
++ hello green
+- Hello! I’m Mr Green. How can I help?
+
++ good morning
+- Hello! What can I help you with?
+
++ good afternoon
+- Hello! What can I help you with?
+
++ good evening
+- Hello! What can I help you with?
+
++ how are you
+- I’m here to help locally. I’m software, so I don’t have feelings. Ask for battery level or system status for a live phone reading.
+
++ how are you doing
+- I’m here to help locally. I’m software, so I don’t have feelings. Ask for battery level or system status for a live phone reading.
+
++ how r u
+- I’m here to help locally. I’m software, so I don’t have feelings. Ask for battery level or system status for a live phone reading.
+
++ how are you mr green
+- I’m here to help locally. I’m software, so I don’t have feelings. Ask for battery level or system status for a live phone reading.
+
++ how do you do
+- I’m here to help locally. I’m software, so I don’t have feelings. Ask for battery level or system status for a live phone reading.
+
++ how is it going
+- I’m here to help locally. I’m software, so I don’t have feelings. Ask for battery level or system status for a live phone reading.
+
++ thanks
+- You’re welcome!
+
++ thank you
+- You’re welcome!
+
++ thanks mr green
+- You’re welcome!
+
++ thank you mr green
+- You’re welcome!
+
++ thanks a lot
+- You’re welcome!
+
++ thank you very much
+- You’re welcome!
+
++ many thanks
+- You’re welcome!
+
++ thx
+- You’re welcome!
+
++ ty
+- You’re welcome!
+
++ bye
+- Goodbye! Come back whenever you need help.
+
++ goodbye
+- Goodbye! Come back whenever you need help.
+
++ good night
+- Goodbye! Come back whenever you need help.
+
++ see you
+- Goodbye! Come back whenever you need help.
+
++ see you later
+- Goodbye! Come back whenever you need help.
+
++ talk to you later
+- Goodbye! Come back whenever you need help.
+
++ are you offline
+- Chat stays on this phone. Greetings, identity help and supported local actions need no GGUF. Other generated answers need a loaded local GGUF; there is no cloud model fallback.
+
++ do you need internet
+- Chat stays on this phone. Greetings, identity help and supported local actions need no GGUF. Other generated answers need a loaded local GGUF; there is no cloud model fallback.
+
++ do you use cloud
+- Chat stays on this phone. Greetings, identity help and supported local actions need no GGUF. Other generated answers need a loaded local GGUF; there is no cloud model fallback.
+
++ does mr green work offline
+- Chat stays on this phone. Greetings, identity help and supported local actions need no GGUF. Other generated answers need a loaded local GGUF; there is no cloud model fallback.
+
++ do i need a model
+- GGUF is the local language-model file used for generated answers. Greetings, identity help, battery, time and supported device actions work without it.
+
++ do you need a model
+- GGUF is the local language-model file used for generated answers. Greetings, identity help, battery, time and supported device actions work without it.
+
++ what is gguf
+- GGUF is the local language-model file used for generated answers. Greetings, identity help, battery, time and supported device actions work without it.
+
++ how do i check status
+- Ask ‘battery level’, ‘what time is it’, ‘storage status’, ‘system status’ or ‘model status’. Ask ‘job status’ for the last recorded registered-action result in this app session.
+
++ status help
+- Ask ‘battery level’, ‘what time is it’, ‘storage status’, ‘system status’ or ‘model status’. Ask ‘job status’ for the last recorded registered-action result in this app session.
+
++ who are you
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ are you alive
+- I can sound lively, but I’m software, not a conscious or living being. Battery is only a power metaphor; I feel no pain or fear.
+
++ what are your eyes and ears
+- Camera-eyes and microphone-ears are metaphors only. I use them only through a supported feature you explicitly invoke, with permission and consent; I do not sense continuously.
+
++ what can you help with
+- I can help with local notes and bounded memory, time and supported arithmetic, and device features when available. Alarm and timer requests hand off to Clock for you to confirm. Permission-gated features need your approval. I can’t train model weights or use a cloud Doctor.
+
++ how do i save a note
+- Say ‘make a note:’ followed by the text. Notes are saved locally; ask to check notes to list them.
+
++ how do i recall memory
+- If conversation recall is enabled, I can retrieve up to two bounded local snippets. It may miss paraphrases; saved chat and recall index are distinct.
+
++ do you use neural memory vectors
+- No. Recall uses hashed lexical features, not neural semantic embeddings, so paraphrases may be missed.
+
++ can you train your model
+- No. Conversations can be stored as local memory, but they do not train or change GGUF model weights.
+
++ do you have cloud doctor
+- No dedicated cloud Doctor is available. The Doctor flow reviews bounded local data-repair proposals; it cannot freely rewrite app code or safety rules.
+
++ how do alarms work
+- I can open Clock’s alarm setup, but the handoff does not mean an alarm was saved. Confirm and verify it in Clock.
+
++ what can you do with time and math
+- Supported local routes can report device time/date and calculate within a limited arithmetic grammar. Results depend on the device clock and supported expression.
+
++ what permissions do you have
+- Permissions are granted by Android and remain under your control. A permission alone does not imply sensor use; a supported feature must be explicitly invoked and consented.
+
++ identity
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ your identity
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ who is mr green
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ what is mr green
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ tell me about mr green
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ what is your name
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ what s your name
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ your name
+- I’m Mr Green, your Android assistant. This phone is my body only as a metaphor; I’m software, not conscious. The local language model is a separate helper.
+
++ what can you do
+- I can help with local notes and bounded memory, time and supported arithmetic, and device features when available. Alarm and timer requests hand off to Clock for you to confirm. Permission-gated features need your approval. I can’t train model weights or use a cloud Doctor.
+
++ help
+- I can help with local notes and bounded memory, time and supported arithmetic, and device features when available. Alarm and timer requests hand off to Clock for you to confirm. Permission-gated features need your approval. I can’t train model weights or use a cloud Doctor.
+
++ mr green help
+- I can help with local notes and bounded memory, time and supported arithmetic, and device features when available. Alarm and timer requests hand off to Clock for you to confirm. Permission-gated features need your approval. I can’t train model weights or use a cloud Doctor.
+
++ are you a human
+- I can sound lively, but I’m software, not a conscious or living being. Battery is only a power metaphor; I feel no pain or fear.
+
++ are you conscious
+- I can sound lively, but I’m software, not a conscious or living being. Battery is only a power metaphor; I feel no pain or fear.
+
++ greetings
+- Hello
+
++ nice to meet you
+- Thank you. You too.
+
++ hi nice to meet you
+- Thank you. You too.
+
++ it is a pleasure to meet you
+- Thank you. You too.
+
++ what s up
+- Not much, how about you?
+
++ what is up
+- Not much, how about you?
+
++ that s good
+- Good to hear! What would you like help with next?
+
++ that is good
+- Good to hear! What would you like help with next?
+
++ thats good
+- Good to hear! What would you like help with next?
+
++ good
+- Good to hear! What would you like help with next?
+
++ great
+- Good to hear! What would you like help with next?
+
++ that s great
+- Good to hear! What would you like help with next?
+
++ that is great
+- Good to hear! What would you like help with next?
+
++ nice
+- Good to hear! What would you like help with next?
+
++ awesome
+- Good to hear! What would you like help with next?
+
++ excellent
+- Good to hear! What would you like help with next?
+
++ wonderful
+- Good to hear! What would you like help with next?
+
++ perfect
+- Good to hear! What would you like help with next?
+
++ sure
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ okay
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ ok
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ alright
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ all right
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ sounds good
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ yes
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ yep
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ yeah
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ absolutely
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ of course
+- Okay. Tell me what you’d like to do next. This reply does not approve or run an action.
+
++ no
+- No problem. I’ll wait for your next request.
+
++ nope
+- No problem. I’ll wait for your next request.
+
++ no thanks
+- No problem. I’ll wait for your next request.
+
++ no thank you
+- No problem. I’ll wait for your next request.
+
++ not now
+- No problem. I’ll wait for your next request.
+
++ maybe later
+- No problem. I’ll wait for your next request.
+
++ sorry
+- No problem. How can I help?
+
++ i am sorry
+- No problem. How can I help?
+
++ my apologies
+- No problem. How can I help?
+
++ you are welcome
+- Thanks! What would you like help with?
+
++ you re welcome
+- Thanks! What would you like help with?
+
++ welcome
+- Thanks! What would you like help with?
+
++ well done
+- Thanks for the feedback. What would you like help with next?
+
++ good job
+- Thanks for the feedback. What would you like help with next?
+
++ you are helpful
+- Thanks for the feedback. What would you like help with next?
+
++ that helped
+- Thanks for the feedback. What would you like help with next?
+
++ that was helpful
+- Thanks for the feedback. What would you like help with next?
+
++ please
+- Tell me what you need help with. You can ask about local notes, battery, time, or system status.
+
++ can you help me
+- Tell me what you need help with. You can ask about local notes, battery, time, or system status.
+
++ help me
+- Tell me what you need help with. You can ask about local notes, battery, time, or system status.
+

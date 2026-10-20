@@ -263,7 +263,7 @@ object AgentController {
             return
         }
         // A personalized answer is not a reusable context-free rule for the same words.
-        val learnThisTurn = !needsMemory && app.getSharedPreferences("rive", Context.MODE_PRIVATE).getBoolean("auto_learn", false)
+        val learnThisTurn = !needsMemory && im.mrgreen.rive.RiveSettings.autoLearning(app)
         // All model-backed inference is local-only. Preserve Rive/direct-rule precedence; never transmit user text or recalled context.
         if (cancelled.get()) return
         mutable.update { it.copy(mode = "Local", streaming = "", generating = false) }
@@ -332,7 +332,7 @@ object AgentController {
                 if (result.ok) publishStats(if (fitted.snippets.isNotEmpty()) "Local ready · conversation memory used" else "Local ready · no recalled context")
                 else if (result.cancelled) publishStats("Generation cancelled")
                 else { publishStats("Local generation stopped"); fail(result.error ?: "Generation stopped", ErrorCode.E_LLM_GENERATE) }
-                if (learnThisTurn && app.getSharedPreferences("rive", Context.MODE_PRIVATE).getBoolean("auto_learn", false)) {
+                if (learnThisTurn && im.mrgreen.rive.RiveSettings.autoLearning(app)) {
                     val complete = im.mrgreen.rive.RiveLearningPolicy.completedLocalAnswer(
                         result.ok, cancelled.get(), mutable.value.error != null, progress.get())
                     try {

@@ -32,7 +32,11 @@ class ConversationWiring(unittest.TestCase):
         self.assertIn('current.engine.reply("owner", match.trigger)', reply)
         self.assertNotIn('commit(', reply)
         self.assertNotIn('learn(', reply)
-        self.assertIn('RuleQuestionLookup((learned + imported).keys)', brain)
+        self.assertIn('RuleQuestionLookup(effective.keys)', brain)
+        self.assertIn('val owner = learned + imported', brain)
+        self.assertIn('bundled.filterKeys { !ownerMatcher.hasEquivalent(it) } + owner', brain)
+        commit = brain.split('private fun commit(', 1)[1].split('private fun compile(', 1)[0]
+        self.assertNotIn('serialize(bundled)', commit)
 
     def test_retrieval_precedes_saved_replies(self):
         self.assertLess(CHAT.index('conversationMemory.retrieve'), CHAT.index('app.rive.reply'))

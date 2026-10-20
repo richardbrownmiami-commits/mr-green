@@ -45,7 +45,10 @@ class RiveNavigationTest {
             return null
         }
         assertNotNull("Saved rules can be reloaded", find(activity.window.decorView, "Reload saved rules"))
-        assertFalse("Auto-learning remains disabled by default", activity.getSharedPreferences("rive", 0).getBoolean("auto_learn", false))
+        assertNotNull(find(activity.window.decorView, "View built-in Q&A rules"))
+        assertNotNull(find(activity.window.decorView, "Export built-in Q&A…"))
+        assertTrue("Personal test default is enabled when no choice exists", im.mrgreen.rive.RiveSettings.autoLearning(activity))
+        assertTrue(views(activity.window.decorView).filterIsInstance<androidx.appcompat.widget.SwitchCompat>().single().isChecked)
         controller.destroy()
     }
 
@@ -63,8 +66,10 @@ class RiveNavigationTest {
         fail("Rule UI IO did not complete")
     }
     @Test fun autoLearningNeedsApprovalAndCanBeDisabledImmediately() {
-        val controller = Robolectric.buildActivity(RiveActivity::class.java).create()
+        val controller = Robolectric.buildActivity(RiveActivity::class.java)
         val activity = controller.get()
+        activity.getSharedPreferences("rive", 0).edit().putBoolean("auto_learn", false).commit()
+        controller.create()
         waitForIo(activity)
         val toggle = views(activity.window.decorView).filterIsInstance<androidx.appcompat.widget.SwitchCompat>().single()
         val prefs = activity.getSharedPreferences("rive", 0)
