@@ -12,6 +12,8 @@ The local PDF importer uses `com.tom-roush:pdfbox-android:2.0.27.0` (Apache-2.0)
 
 Public web/MCP transport uses `com.squareup.okhttp3:okhttp:4.12.0` and its Okio dependency (Apache-2.0). The custom DNS policy validates the actual address list used for connection while retaining normal TLS hostname verification. Redirects, proxies and automatic retries are disabled; no additional Android permission or service is introduced.
 
+Temporary web questions use the MIT-licensed [OpenNARS-for-Applications](https://github.com/opennars/OpenNARS-for-Applications) runtime pinned to `dc4efd0abd520cdb79bf53bfa3c285ebb24f2e8a`. Its minimal C sources and MIT notice are retained in `vendor/ona`; `UPSTREAM.txt` records local capacity, logging and RAM-only exact-answer adapter changes. The MIT notice is bundled in `assets/licenses/ona-MIT.txt`. The upstream Python/NLTK language bridge is not used. DuckDuckGo HTML search and fallback Wikipedia article summaries are public retrieval sources, not cloud AI providers or endorsed partners. Retrieved excerpts retain source URLs and are not saved or republished as a bundled corpus; source content remains subject to its respective licenses and terms.
+
 Model weights are not bundled, downloaded automatically, or licensed by this repository. The supplied plan identifies Bonsai Q2_0 as the primary candidate; the owner imports an appropriate GGUF and must retain its original model license. The current editable branding SVG is retained under `assets/`.
 
 No license for the owner's original application source is assumed merely because the repository is public. The owner can add an explicit application license independently.

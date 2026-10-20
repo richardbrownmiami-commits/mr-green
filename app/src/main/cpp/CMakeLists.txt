@@ -50,3 +50,13 @@ target_compile_features(mrgreen_quickjs PRIVATE cxx_std_17)
 target_compile_definitions(mrgreen_quickjs PRIVATE CONFIG_BIGNUM CONFIG_VERSION=\"2024-01-13\")
 target_include_directories(mrgreen_quickjs PRIVATE "${QUICKJS_DIR}")
 target_link_libraries(mrgreen_quickjs PRIVATE log android)
+
+# OpenNARS-for-Applications (pinned minimal runtime; no CLI or motor operations).
+file(GLOB ONA_RUNTIME_SOURCES "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/ona/src/*.c")
+list(APPEND ONA_RUNTIME_SOURCES "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/ona/src/NetworkNAR/Metric.c" "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/ona/src/NetworkNAR/UDP.c")
+list(REMOVE_ITEM ONA_RUNTIME_SOURCES "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/ona/src/main.c" "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/ona/src/Shell.c")
+add_library(mrgreen_ona SHARED ona_jni.c ${ONA_RUNTIME_SOURCES})
+target_include_directories(mrgreen_ona PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../../../vendor/ona/src")
+target_compile_definitions(mrgreen_ona PRIVATE STAGE=1)
+target_compile_options(mrgreen_ona PRIVATE -Wno-unused-parameter -Wno-unused-variable -Wno-strict-prototypes)
+target_link_libraries(mrgreen_ona PRIVATE log android m)

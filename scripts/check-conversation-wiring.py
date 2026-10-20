@@ -93,5 +93,17 @@ class ConversationWiring(unittest.TestCase):
         self.assertIn('require(reviewedPublicArguments)', knowledge)
         self.assertIn('require(userApprovedRemoteAction)', knowledge)
 
+    def test_web_questions_exit_before_persistent_chat_routes(self):
+        web = SOURCE.split('// Explicit web questions are ephemeral:', 1)[1].split('deterministicFirst<Unit>', 1)[0]
+        self.assertIn('WebQuestionDispatch', web)
+        self.assertIn('!app.roadmap.knowledge.localOnly', web)
+        self.assertIn('return@enqueue', web)
+        self.assertIn('temporaryWeb = exchange', web)
+        for forbidden in ('addMessage', 'conversationMemory', 'app.rive', 'ensureLocalReady', 'gateway.', 'answerContext'):
+            self.assertNotIn(forbidden, web)
+        dispatch = (ROOT / 'app/src/main/java/im/mrgreen/core/WebQuestionDispatch.kt').read_text()
+        for forbidden in ('import im.mrgreen.data', 'import im.mrgreen.memory', 'import im.mrgreen.engine', 'import im.mrgreen.gateway'):
+            self.assertNotIn(forbidden, dispatch)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

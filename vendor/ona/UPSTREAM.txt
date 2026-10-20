@@ -1,0 +1,14 @@
+OpenNARS-for-Applications
+Upstream: https://github.com/opennars/OpenNARS-for-Applications
+Pinned commit: dc4efd0abd520cdb79bf53bfa3c285ebb24f2e8a
+License: MIT; see LICENSE.
+Vendored source: runtime src/*.c and src/*.h excluding CLI main/Shell and generated RuleTable.c.
+
+Mr Green embedded changes:
+- Config.h reduces concept, event, goal, term and implication capacities; operations are disabled. Build uses STAGE=1 with the upstream declarative inference path, not a generated general NAL rule table.
+- Globals.h disables PRINT_INPUT_INITIAL; normal derivation/debug/control output was already disabled. The JNI wrapper also forces input/derivation logging off per reset.
+- NAR.h/NAR.c add NAR_AnswerGround(question, cycles): run bounded upstream inference, then match the exact eternal affirmative belief in core memory with positive confidence/expectation. No new inference rules are added. Unknown relations return false.
+- Android wrapper accepts only app-generated bounded ASCII sentences, no goals or CLI commands. It does not register operations, print source data, redirect process stdout, or use files. Kotlin serializes each complete request and resets native state in finally.
+
+Native host correctness/privacy harness: bash scripts/test-ona-host.sh
+Phone peak RAM and speed are not inferred from host executable BSS.

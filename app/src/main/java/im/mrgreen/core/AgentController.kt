@@ -37,6 +37,7 @@ data class AgentState(
     val status: String = "No model loaded",
     val streaming: String = "",
     val error: String? = null,
+    val temporaryWeb: TemporaryWebExchange? = null,
     val stats: EngineStats = EngineStats(null, 0, 0.0, 0.0, 0, 0),
     val refresh: Long = 0
 )
@@ -54,6 +55,7 @@ object AgentController {
     @Volatile private var lastUse = System.currentTimeMillis()
     private val cancelled = AtomicBoolean(false)
     private val warmQueued = AtomicBoolean(false)
+    private var temporaryWebExpiry: Job? = null
     @Volatile private var allowPrewarm = true
     val gateway by lazy {
         GatewayClient(app, audit = { provider, dataClass, category, bytes ->
@@ -197,8 +199,29 @@ object AgentController {
         if (initialized.get()) app.roadmap.health.onUserInput()
         return enqueue(context) {
             cancelled.set(false)
+            clearTemporaryWeb()
             if (text.length > 12_000) {
                 fail("Message is too long for the small local context. Please shorten it.", ErrorCode.E_LLM_CONTEXT)
+                return@enqueue
+            }
+            // Explicit web questions are ephemeral: bypass persistent action transcripts,
+            // conversation recall, saved replies, GGUF generation and auto-learning entirely.
+            if (im.mrgreen.knowledge.WebQuestionParser.parse(text) !is im.mrgreen.knowledge.WebQuestionCommand.NotWebQuestion) {
+                mutable.update { it.copy(mode = "Local", status = "Reading public sources · answering on this phone…",
+                    generating = true, streaming = "") }
+                val exchange = WebQuestionDispatch { request, stop ->
+                    im.mrgreen.knowledge.WebQuestionRetriever(isCancelled = stop,
+                        reasoner = { question, sources -> im.mrgreen.reasoning.WebFactReasoner.reason(question, sources) }
+                    ).answer(request)
+                }.handle(text, !app.roadmap.knowledge.localOnly) { cancelled.get() }
+                mutable.update { it.copy(temporaryWeb = exchange, generating = false,
+                    status = "Temporary web answer · not saved · clears after 5 minutes or next message",
+                    refresh = System.currentTimeMillis()) }
+                temporaryWebExpiry = scope.launch {
+                    delay(5 * 60 * 1000L)
+                    mutable.update { if (it.temporaryWeb === exchange) it.copy(temporaryWeb = null,
+                        refresh = System.currentTimeMillis()) else it }
+                }
                 return@enqueue
             }
             deterministicFirst<Unit>(
@@ -357,6 +380,13 @@ object AgentController {
         catch (_: Exception) { app.logger.write("WARN", "MEMORY", "Conversation indexing deferred; chat retained") }
     }
 
+    fun clearTemporaryWeb() {
+        temporaryWebExpiry?.cancel()
+        temporaryWebExpiry = null
+        mutable.update { if (it.temporaryWeb == null) it else it.copy(temporaryWeb = null,
+            refresh = System.currentTimeMillis()) }
+    }
+
     /** Explicit builder-only request: no chat history, persistence, or draft-content logging. */
     fun draftPlugin(context: Context, request: String, script: Boolean, callback: (String?) -> Unit): Boolean {
         val text = request.trim()
@@ -445,6 +475,7 @@ object AgentController {
     fun releaseForServiceStop() {
         if (!initialized.get()) return
         cancelled.set(true)
+        clearTemporaryWeb()
         allowPrewarm = false
         gateway.cancel()
         engine.cancel()
@@ -456,6 +487,7 @@ object AgentController {
     fun trimMemory() {
         if (!initialized.get()) return
         allowPrewarm = false
+        clearTemporaryWeb()
         if (mutable.value.stats.loadedModel == null && !requested.get()) return
         cancelled.set(true)
         gateway.cancel()
