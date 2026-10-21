@@ -13,10 +13,18 @@ object RuntimePolicy {
     const val LOW_RAM_BYTES = 600L * 1024 * 1024
     const val TARGET_PEAK_BYTES = 1200L * 1024 * 1024
     const val HARD_CAP_BYTES = 2L * 1024 * 1024 * 1024
-    const val MAX_MODEL_BYTES = 1300L * 1024 * 1024
+    // The old 1.3 GiB gate rejected valid 1.4–1.7 GiB GGUFs before llama.cpp ever saw them.
+    // Keep a 32-bit-safe ceiling instead of pretending a 2+ GiB ARMv7 process is safe.
+    const val MAX_MODEL_BYTES = 1792L * 1024 * 1024
+    const val MODEL_HEADROOM_BYTES = 320L * 1024 * 1024
     const val IDLE_UNLOAD_MS = 10L * 60 * 1000
+
     fun contextSize(requested: Int, availableBytes: Long): Int =
         requested.coerceIn(512, if (availableBytes < LOW_RAM_BYTES) 1024 else 2048)
+
     fun validModel(fileName: String, bytes: Long): Boolean =
         fileName.endsWith(".gguf", ignoreCase = true) && bytes in 1..MAX_MODEL_BYTES
+
+    fun hasModelMemoryBudget(modelBytes: Long, availableBytes: Long): Boolean =
+        modelBytes > 0 && modelBytes <= MAX_MODEL_BYTES && availableBytes >= modelBytes + MODEL_HEADROOM_BYTES
 }
