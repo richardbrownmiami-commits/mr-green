@@ -1,0 +1,65 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Build ARMv7 debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and CMake
+        run: |
+          sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
+          yes | sdkmanager --licenses
+
+      - name: Fetch pinned native dependencies
+        run: |
+          chmod +x gradlew scripts/fetch-llama.sh scripts/fetch-quickjs.sh
+          ./scripts/fetch-llama.sh
+          ./scripts/fetch-quickjs.sh
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-green-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-green-build-diagnostics
+          path: |
+            app/build/reports/**
+            app/build/outputs/logs/**
+            **/build/tmp/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
