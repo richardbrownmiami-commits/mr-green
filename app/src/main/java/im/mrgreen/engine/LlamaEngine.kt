@@ -70,6 +70,9 @@ class LlamaEngine {
         onProgress: (String, Int, Int) -> Unit = { _, _, _ -> },
         onToken: (String) -> Unit
     ): EngineResult = guarded {
+        if (messages.any { it.role == "system" }) {
+            return@guarded "System-role messages are not supported"
+        }
         val m = messages.flatMap { listOf(it.role, it.content) }.toTypedArray()
         val o = arrayOf(opts.maxTokens.toString(), opts.temperature.toString(), opts.topK.toString(), opts.topP.toString(), opts.minP.toString(), opts.presencePenalty.toString(), opts.grammar ?: "", opts.stop.joinToString("\u0001"))
         Log.i("MrGreenLLM", "generate requested turns=${messages.size} maxTokens=${opts.maxTokens} temp=${opts.temperature} topK=${opts.topK} topP=${opts.topP}")

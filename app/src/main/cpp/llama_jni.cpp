@@ -182,8 +182,11 @@ std::string make_prompt(JNIEnv *env, jobjectArray messages) {
     for (jsize i = 0; i < size; i += 2) {
         jstring role = static_cast<jstring>(env->GetObjectArrayElement(messages, i));
         jstring content = static_cast<jstring>(env->GetObjectArrayElement(messages, i + 1));
-        roles.push_back(jstr(env, role)); contents.push_back(jstr(env, content));
+        const std::string role_text = jstr(env, role);
+        const std::string content_text = jstr(env, content);
         env->DeleteLocalRef(role); env->DeleteLocalRef(content);
+        if (role_text == "system") throw std::runtime_error("System-role messages are not supported");
+        roles.push_back(role_text); contents.push_back(content_text);
     }
     // Qwen3's soft switch is part of its trained format and is safer than injecting a
     // bare </think> token. This keeps reasoning off while preserving the template.
