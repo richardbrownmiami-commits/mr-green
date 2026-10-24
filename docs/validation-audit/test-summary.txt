@@ -1,8 +1,0 @@
-Host JVM/Robolectric regression results; NOT Android/requery or Redmi evidence.
-{'tests': 187, 'failures': 0, 'errors': 0, 'skipped': 3, 'passed': 184}
-Existing skips:
-im.mrgreen.data.GreenStoreTest.cacheExpiresCapsTtlAndBoundsEntries
-im.mrgreen.data.GreenStoreTest.v1UpgradePreservesUserDataFtsAndExistingCloudRows
-im.mrgreen.data.GreenStoreTest.auditRejectsP2AndUnlistedCategory
-Lint severity totals: {'Warning': 258}
-No new skips added.

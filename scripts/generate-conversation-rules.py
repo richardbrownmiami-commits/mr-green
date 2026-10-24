@@ -44,13 +44,18 @@ header = '''! version = 2.0
 // Mr Green built-in static conversation defaults. No live readings or action completion claims.
 // Greeting adaptations: ChatterBot Corpus, Gunther Cox (2017), BSD-3-Clause.
 // Source: https://github.com/gunthercox/chatterbot-corpus/blob/eec45b284424c9784a5baab78368b1a9ff3b656f/chatterbot_corpus/data/english/greetings.yml
-// License: assets/licenses/chatterbot-corpus-BSD-3-Clause.txt (also docs/licenses in source).
+// BSD-3-Clause license notice is reproduced below.
 // Other app-help and acknowledgement replies are Mr Green code-owned text.
 // Identity entries are default copies; editable identity wins in the app.
 
 '''
-license_text = (ROOT / 'docs/licenses/chatterbot-corpus-BSD-3-Clause.txt').read_text(encoding='utf-8')
-notice = ''.join(f'// {line}\n' if line else '//\n' for line in license_text.splitlines())
-text = header + notice + '\n' + ''.join(f'+ {key}\n- {answer}\n\n' for key, answer in rules.items())
-(ROOT / 'app/src/main/assets/rive/builtin-conversation.rive').write_text(text, encoding='utf-8')
+target = ROOT / 'app/src/main/assets/rive/builtin-conversation.rive'
+existing = target.read_text(encoding='utf-8')
+license_start = existing.find('// Copyright (c) 2017, Gunther Cox All rights reserved.')
+license_end = existing.find('\n+ hi', license_start)
+if license_start < 0 or license_end < 0:
+    raise RuntimeError('Embedded BSD license notice is missing from the conversation asset')
+notice = existing[license_start:license_end].rstrip() + '\n\n'
+text = header + notice + ''.join(f'+ {key}\n- {answer}\n\n' for key, answer in rules.items())
+target.write_text(text, encoding='utf-8')
 print(f'Generated {len(rules)} literal conversation rules')

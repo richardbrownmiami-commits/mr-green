@@ -3,7 +3,7 @@
 // Mr Green built-in static conversation defaults. No live readings or action completion claims.
 // Greeting adaptations: ChatterBot Corpus, Gunther Cox (2017), BSD-3-Clause.
 // Source: https://github.com/gunthercox/chatterbot-corpus/blob/eec45b284424c9784a5baab78368b1a9ff3b656f/chatterbot_corpus/data/english/greetings.yml
-// License: assets/licenses/chatterbot-corpus-BSD-3-Clause.txt (also docs/licenses in source).
+// BSD-3-Clause license notice is reproduced below.
 // Other app-help and acknowledgement replies are Mr Green code-owned text.
 // Identity entries are default copies; editable identity wins in the app.
 

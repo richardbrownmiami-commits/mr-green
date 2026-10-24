@@ -1,2 +1,0 @@
-344ac26321855543eca78167aecd4647a0cae85004c8680bf6fdc21ce60e156b  /home/ubuntu/output/mr-green-0.10.0-debug.apk
-e73792e11b1cb5313283aea24297e39076e9535b43ebcbcc1f619e52576bf630  /home/ubuntu/output/mr-green-0.10.0-release-dev-signed.apk

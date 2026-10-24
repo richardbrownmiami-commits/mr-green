@@ -12,14 +12,19 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
-/** APK-owned recipe allowlist. No generic intents, model tools, shell or external AI chat. */
+/** Backend-owned recipe allowlist. No generic intents, model tools, shell or external AI chat. */
 object RecipeRuntime {
     private const val WHATSAPP = "com.whatsapp"
     @Volatile internal var service: RecipeAccessibilityService? = null
+    /** Host-provided per-action confirmation UI; absent callbacks always fail closed. */
     @Volatile var confirmation: (suspend (String, String) -> Boolean)? = null
     @Volatile internal var cancelPendingConfirmation: (() -> Unit)? = null
     @Volatile internal var isRunning = false
     private val mutex = Mutex()
+
+    /** Call only from a host-owned user action after its confirmation surface is ready. */
+    fun beginManualSession(): Boolean = service?.controls?.startHostApprovedSession() == true
+    fun stopManualSession() { service?.controls?.stop() }
 
     suspend fun execute(request: String): String? {
         if (request.length > 4096) return "Recipe input is too long. Nothing was done."
@@ -28,12 +33,12 @@ object RecipeRuntime {
         if (recipe in setOf("meta.prompt", "gemini.prompt", "meta.result", "gemini.result"))
             return "External AI conversation recipes are disabled. Use a local GGUF model; no prompt was entered and no result was read."
         if (recipe !in setOf("whatsapp.send", "wifi.settings")) return null
-        val context = service ?: return "Accessibility bridge is disconnected. Enable Mr Green Recipes accessibility service; nothing was done."
+        val context = service ?: return "Host accessibility service is disconnected; nothing was done."
         val allowed = if (recipe == "whatsapp.send") setOf("recipe", "recipient", "message") else setOf("recipe")
         if (j.keys().asSequence().any { it !in allowed } || j.opt("recipe") !is String) return "Invalid recipe arguments. Nothing was done."
         return withContext(Dispatchers.Main.immediate) {
             mutex.withLock {
-                if (!context.controls.showStopOnly()) return@withLock "Stop control is unavailable. Nothing was done."
+                if (!context.controls.active) return@withLock "Start a host-approved manual session first. Nothing was done."
                 val token = context.controls.generation
                 fun checkActive() { check(service === context && context.controls.isCurrent(token)) { "stopped" } }
                 isRunning = true
@@ -43,7 +48,7 @@ object RecipeRuntime {
                             if (j.opt("recipient") !is String || j.opt("message") !is String) return@withLock "Recipient and message must be text. Nothing was sent."
                             val recipient = j.getString("recipient").trim(); val message = j.getString("message").trim()
                             if (!RecipePolicy.validWhatsApp(recipient, message)) return@withLock "Recipient and message are required (maximums 120 and 2,000 characters). Nothing was sent."
-                            val approve = confirmation ?: return@withLock "No foreground confirmation UI is available. Nothing was sent."
+                            val approve = confirmation ?: return@withLock "Host confirmation is unavailable. Nothing was sent."
                             if (!withTimeout(30_000) { approve(recipient, message) }) return@withLock "Cancelled. Nothing was sent."
                             checkActive()
                             val launch = context.packageManager.getLaunchIntentForPackage(WHATSAPP) ?: return@withLock "WhatsApp is not installed. Nothing was sent."
@@ -84,7 +89,7 @@ object RecipeRuntime {
                             }
                         }
                         "wifi.settings" -> {
-                            val approve = confirmation ?: return@withLock "No foreground confirmation UI is available. Wi-Fi settings were not opened."
+                            val approve = confirmation ?: return@withLock "Host confirmation is unavailable. Wi-Fi settings were not opened."
                             if (!withTimeout(30_000) { approve("Wi-Fi settings", "Open Android Wi-Fi settings only; no setting is changed.") }) return@withLock "Cancelled. Wi-Fi settings were not opened."
                             checkActive()
                             context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -138,11 +143,10 @@ object RecipeRuntime {
 }
 
 class RecipeAccessibilityService : AccessibilityService() {
-    internal val controls by lazy { NativeControlSession(this) }
+    internal val controls by lazy { NativeControlSession() }
     override fun onServiceConnected() { super.onServiceConnected(); RecipeRuntime.service = this }
-    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
-        if (event?.eventType == android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) controls.windowChanged(event.packageName?.toString(), event.windowId)
-    }
+    // The backend reads the active tree only for an explicitly requested, confirmed recipe.
+    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) = Unit
     override fun onInterrupt() { controls.stop() }
     override fun onDestroy() { controls.stop(); if (RecipeRuntime.service === this) RecipeRuntime.service = null; super.onDestroy() }
 }

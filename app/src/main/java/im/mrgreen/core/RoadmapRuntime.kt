@@ -1,17 +1,14 @@
 package im.mrgreen.core
 
-import android.content.Context
 import im.mrgreen.GreenApp
 import im.mrgreen.actions.ActionRuntime
 import im.mrgreen.actions.ActionTools
 import im.mrgreen.events.EventRuntime
 import im.mrgreen.knowledge.KnowledgeRuntime
 import im.mrgreen.learning.LearningRuntime
-import im.mrgreen.learning.LearningActivityBridge
-import im.mrgreen.screen.*
 import org.json.JSONObject
 
-/** One facade for the existing app: no second model, queue, chat store or APK. */
+/** Backend runtime facade: one model, serialized queue and local data store. */
 class RoadmapRuntime(private val app: GreenApp) {
     private var connected = false
     val health by lazy { HealthMaintenance(app) }
@@ -28,37 +25,12 @@ class RoadmapRuntime(private val app: GreenApp) {
         runtime.onUserInput = { health.onUserInput() }
         runtime.goldenPlanner = { input -> actions.refreshRules(); actions.planDryRun(input) }
         runtime.registeredPlanValidator = { tool, args -> ActionTools.validate(JSONObject().put("tool", tool).put("args", args)) }
-        LearningActivityBridge.runtime = runtime
     } }
     @Synchronized fun connect() {
         if (connected) return
         actions.initializeLibrary()
         // GreenStore.log already persists/counts this incident. Export metadata only here.
         app.logger.onIncident = { component,code,summary -> learning.incidentSink?.invoke(component,"",code,summary) }
-        LearningActivityBridge.runtime = learning
-        im.mrgreen.knowledge.KnowledgeActivity.runtime = knowledge
-        ScreenAssistantBridge.answerProvider = ScreenAnswerProvider { prompt, _ ->
-            // Screen context can contain private data. All model routes stay on-device.
-            AgentController.answerContext(app, prompt, localOnly = true, category = "screen")
-        }
-        ScreenAssistantBridge.actionConfirmer = ScreenActionConfirmer { action, done ->
-            val intent = when (action.type) {
-                ScreenAction.Type.CALL -> android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + android.net.Uri.encode(action.value)))
-                ScreenAction.Type.COPY -> { (app.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Extracted item", action.value)); done(); return@ScreenActionConfirmer }
-                ScreenAction.Type.ALARM -> android.content.Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
-                    val time = ConfirmedScreenAlarm.parse(action.value)
-                    if (time == null) {
-                        app.logger.write("WARN", "SCREEN", "Extracted alarm time was invalid; no Clock action requested")
-                        return@ScreenActionConfirmer
-                    }
-                    putExtra(android.provider.AlarmClock.EXTRA_HOUR, time.hour)
-                    putExtra(android.provider.AlarmClock.EXTRA_MINUTES, time.minute)
-                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
-                }
-            }
-            try { app.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); done() }
-            catch (_: Exception) { app.logger.write("WARN", "SCREEN", "Confirmed extracted action could not open the target app") }
-        }
         if (events.isRunning()) events.start()
         val interrupted=java.io.File(app.filesDir,"bug-reports/native-interrupted.json")
         if(interrupted.isFile && !app.getSharedPreferences("native_journal",0).getBoolean("reported",false)) {

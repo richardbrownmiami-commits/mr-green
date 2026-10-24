@@ -1,3 +1,0 @@
-libc++_shared.so: Android build note API 21; DT_NEEDED=libc.so, libm.so, libdl.so
-libmrgreen.so: Android build note API 26; DT_NEEDED=liblog.so, libandroid.so, libm.so, libdl.so, libc++_shared.so, libc.so
-libsqlite3x.so: Android build note API 21; DT_NEEDED=libdl.so, liblog.so, libc.so, libm.so

@@ -1,2 +1,0 @@
-60c5956ebf61aefba74209f674f93875bdd09ddf1fd06e2d1176de052864e7fd  mr-green-0.10.3-memory-preview-personal-debug.apk
-90fd7ea5c8e709ea9b48654fb6411a78473303232c8bb0388a8d01dc0e26d4c1  mr-green-0.10.3-memory-preview-personal-release-unsigned.apk

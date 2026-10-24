@@ -257,7 +257,7 @@ class ActionRuntime(private val context: Context, private val store: GreenStore,
             if (System.nanoTime() > deadline) return PlanExecutionResult(PlanOutcome.FAILED, "Stopped: action time budget exceeded. Earlier actions were not undone.")
             val permission = ActionTools.registry.first { it.id == tool }.permission
             if (permission != null && context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED)
-                return PlanExecutionResult(PlanOutcome.FAILED, "Permission missing for $tool. No permission was granted automatically; review Capability setup.")
+                return PlanExecutionResult(PlanOutcome.FAILED, "Permission missing for $tool. No permission was granted automatically; the host app must request it.")
             val result = try { runTool(tool, args) } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 ToolResult(false, "Stopped: action timed out.")
             } catch (e: kotlinx.coroutines.CancellationException) {

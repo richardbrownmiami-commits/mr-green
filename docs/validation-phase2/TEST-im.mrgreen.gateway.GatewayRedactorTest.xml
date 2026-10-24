@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="im.mrgreen.gateway.GatewayRedactorTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-18T13:10:02" hostname="b336462f34df" time="0.004">
-  <properties/>
-  <testcase name="leavesBenignTextReadable" classname="im.mrgreen.gateway.GatewayRedactorTest" time="0.002"/>
-  <testcase name="masksContactNamesNotificationBodiesAndPaths" classname="im.mrgreen.gateway.GatewayRedactorTest" time="0.001"/>
-  <testcase name="masksPersonalIdentifiersAndSecrets" classname="im.mrgreen.gateway.GatewayRedactorTest" time="0.001"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

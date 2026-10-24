@@ -1,9 +1,0 @@
-PASS: 76 native compile commands use ARMv7 Android and effective -O3
-PASS: ELF32 ARM lib/armeabi-v7a/libc++_shared.so
-PASS: ELF32 ARM lib/armeabi-v7a/libmrgreen.so
-PASS: ELF32 ARM lib/armeabi-v7a/libsqlite3x.so
-Packaging/compile checks passed; Android 11 phone execution remains unverified.
-package: name='im.mrgreen' versionCode='4' versionName='0.1.3-armv7-inference-fix' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
-sdkVersion:'26'
-targetSdkVersion:'30'
-native-code: 'armeabi-v7a'

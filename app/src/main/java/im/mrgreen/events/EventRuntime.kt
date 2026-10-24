@@ -13,8 +13,6 @@ import android.provider.Settings
 import android.media.AudioManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.view.ViewGroup
-import android.widget.*
 import androidx.core.content.ContextCompat
 import im.mrgreen.GreenApp
 import im.mrgreen.data.GreenStore
@@ -183,34 +181,4 @@ class GreenNotificationListener : NotificationListenerService() {
         val extras=sbn.notification.extras
         EventRuntime.shared(applicationContext, app.store).recordNotification(sbn.packageName, extras.getCharSequence("android.title")?.toString(), extras.getCharSequence("android.text")?.toString())
     }
-}
-
-class EventsActivity : Activity() {
-    private lateinit var runtime: EventRuntime
-    private lateinit var status: TextView
-    private lateinit var callSwitch: Switch
-    private lateinit var mediaSwitch: Switch
-    private lateinit var runtimeSwitch: Switch
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState)
-        runtime=EventRuntime.shared(this, (application as? GreenApp)?.store ?: GreenStore(this))
-        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,24,24,24) }
-        root.addView(TextView(this).apply { text="Events & proactive alerts\nCollection stays on this device. Notification text is not retained unless you opt in." })
-        status=TextView(this); root.addView(status)
-        root.addView(Button(this).apply { text="Notification access settings"; setOnClickListener { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } })
-        runtimeSwitch=Switch(this).apply { text="Enable event monitoring"; isChecked=runtime.isRunning(); setOnCheckedChangeListener { _,yes -> if(yes) runtime.start() else runtime.stop(); refresh() } }; root.addView(runtimeSwitch)
-        root.addView(Switch(this).apply { text="Restore enabled monitoring after reboot (MIUI may block it)";isChecked=getSharedPreferences("phase4_events",0).getBoolean("restore_on_boot",false);setOnCheckedChangeListener{_,v->getSharedPreferences("phase4_events",0).edit().putBoolean("restore_on_boot",v).apply()} })
-        callSwitch=Switch(this).apply { text="Opt in to missed-call events"; isChecked=runtime.isCallMonitoringEnabled(); setOnCheckedChangeListener { _,yes -> if(yes) { if(ContextCompat.checkSelfPermission(this@EventsActivity,Manifest.permission.READ_CALL_LOG)==PackageManager.PERMISSION_GRANTED) runtime.setMissedCallMonitoring(true) else { callSwitch.isChecked=false; requestPermissions(arrayOf(Manifest.permission.READ_CALL_LOG),REQ_CALL) } } else runtime.setMissedCallMonitoring(false); refresh() } }; root.addView(callSwitch)
-        mediaSwitch=Switch(this).apply { text="Opt in to local audio/video library scan"; isChecked=runtime.isMediaMonitoringEnabled(); setOnCheckedChangeListener { _,yes -> if(yes) { if(ContextCompat.checkSelfPermission(this@EventsActivity,Manifest.permission.READ_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED) runtime.setMediaMonitoring(true) else { mediaSwitch.isChecked=false; requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),REQ_MEDIA) } } else runtime.setMediaMonitoring(false); refresh() } }; root.addView(mediaSwitch)
-        root.addView(Switch(this).apply { text="Retain notification titles and text locally (sensitive)"; isChecked=runtime.notificationTextRetentionEnabled(); setOnCheckedChangeListener { _,yes -> runtime.setNotificationTextRetention(yes) } })
-        root.addView(Switch(this).apply { text="Allow generic proactive alerts (quiet hours configurable in settings)"; isChecked=getSharedPreferences("phase4_events",0).getBoolean("proactive",false); setOnCheckedChangeListener { _,yes -> runtime.setProactive(yes) } })
-        root.addView(Button(this).apply { text="Set quiet hours"; setOnClickListener { val input=EditText(this@EventsActivity).apply { hint="start,end (24-hour), e.g. 22,8" }; AlertDialog.Builder(this@EventsActivity).setTitle("Quiet hours").setView(input).setPositiveButton("Save") { _,_ -> val v=input.text.toString().split(',').mapNotNull { it.trim().toIntOrNull() }; if(v.size==2 && v.all { it in 0..23 }) runtime.setQuietHours(v[0],v[1]) else Toast.makeText(this@EventsActivity,"Enter two hours from 0 to 23",Toast.LENGTH_LONG).show() }.setNegativeButton("Cancel",null).show() } })
-        root.addView(Button(this).apply { text="Set minimum proactive alert interval (minutes)"; setOnClickListener { val input=EditText(this@EventsActivity).apply { inputType=android.text.InputType.TYPE_CLASS_NUMBER; hint="60" }; AlertDialog.Builder(this@EventsActivity).setTitle("Alert interval").setView(input).setPositiveButton("Save") { _,_ -> val n=input.text.toString().toIntOrNull(); if(n!=null && n in 1..1440) runtime.setMinimumAlertIntervalMinutes(n) else Toast.makeText(this@EventsActivity,"Enter 1–1440 minutes",Toast.LENGTH_LONG).show() }.setNegativeButton("Cancel",null).show() } })
-        root.addView(Button(this).apply { text="Set notification app allowlist (comma-separated package names; blank = all)"; setOnClickListener { val input=EditText(this@EventsActivity).apply { setText(getSharedPreferences("phase4_events",0).getStringSet("allowed_packages",emptySet()).orEmpty().joinToString(",")) }; AlertDialog.Builder(this@EventsActivity).setTitle("Notification sources").setView(input).setPositiveButton("Save") { _,_ -> runtime.setAllowedPackages(input.text.toString().split(',').map { it.trim() }.filter { it.isNotBlank() }.toSet()) }.setNegativeButton("Cancel",null).show() } })
-        root.addView(TextView(this).apply { text="${runtime.events().size} recent event records (maximum 200)." })
-        setContentView(ScrollView(this).apply{addView(root)}, ViewGroup.LayoutParams(-1,-1)); refresh()
-    }
-    override fun onResume() { super.onResume(); if(::runtime.isInitialized) refresh() }
-    override fun onRequestPermissionsResult(requestCode:Int, permissions:Array<out String>, results:IntArray) { super.onRequestPermissionsResult(requestCode,permissions,results); val granted=results.firstOrNull()==PackageManager.PERMISSION_GRANTED; if(requestCode==REQ_CALL) { runtime.setMissedCallMonitoring(granted); callSwitch.isChecked=granted }; if(requestCode==REQ_MEDIA) { runtime.setMediaMonitoring(granted); mediaSwitch.isChecked=granted }; refresh() }
-    private fun refresh() { status.text="Monitoring: ${if(runtime.isRunning()) "on" else "off"}; Notification access: ${if(runtime.hasNotificationAccess()) "granted" else "not granted"}; Call permission: ${if(ContextCompat.checkSelfPermission(this,Manifest.permission.READ_CALL_LOG)==PackageManager.PERMISSION_GRANTED) "granted" else "not granted"}; Media permission: ${if(ContextCompat.checkSelfPermission(this,Manifest.permission.READ_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED) "granted" else "not granted"}." }
-    companion object { private const val REQ_CALL=41; private const val REQ_MEDIA=42 }
 }

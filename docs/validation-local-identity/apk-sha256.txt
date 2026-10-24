@@ -1,1 +1,0 @@
-810998d6cd9c21860314c7f00be197230e251dacf922e38dcea273954d188fa1  /home/ubuntu/output/mr-green-0.10.4-armv7-development-signed.apk

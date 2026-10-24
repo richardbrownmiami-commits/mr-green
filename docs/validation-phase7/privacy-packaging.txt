@@ -1,5 +1,0 @@
-PASS: tracked/candidate source scan found no supported credential patterns or configured API values
-PASS: app-debug.apk: credential-pattern scan, no private/model assets, ARMv7-only QuickJS packaging
-PASS: app-release-unsigned.apk: credential-pattern scan, no private/model assets, ARMv7-only QuickJS packaging
-PASS: im.mrgreen, Android target 30/min 26, unchanged permissions, non-exported plugin UI, backup disabled
-LIMITATION: heuristic static scan and host checks do not establish Redmi A25/A26 acceptance.

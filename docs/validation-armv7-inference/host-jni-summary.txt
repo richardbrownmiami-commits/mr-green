@@ -1,9 +1,0 @@
-PASS load; error=null
-PASS stream and both progress stages; callbacks=21; error=null
-PASS token cancellation
-PASS prompt-stage cancellation
-PASS request after cancellation; callbacks=21
-PASS unload; HOST ONLY, no Android phone validation
-
-Model: bartowski/SmolLM2-135M-Instruct-GGUF / SmolLM2-135M-Instruct-Q4_K_M.gguf
-Platform: Linux x86_64 / JDK 17; not Android/ARMv7.
